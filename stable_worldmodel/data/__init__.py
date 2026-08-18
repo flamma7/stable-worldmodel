@@ -28,11 +28,15 @@ from . import formats as _formats  # noqa: F401
 
 # Re-export concrete readers/writers from their format modules so existing
 # imports like `from stable_worldmodel.data import LanceDataset` keep working.
-# Optional formats (hdf5, video) are re-exported only when their extras are
-# installed; absent ones are simply not bound at module level.
-from .formats.lance import LanceDataset, LanceWriter
+# Optional formats (lance, hdf5, video) are re-exported only when their extras
+# are installed; absent ones are simply not bound at module level.
 from .formats.folder import FolderDataset, FolderWriter, ImageDataset
 from .formats.lerobot import LeRobotAdapter
+
+try:
+    from .formats.lance import LanceDataset, LanceWriter  # noqa: F401
+except ImportError:
+    pass
 
 try:
     from .formats.hdf5 import HDF5Dataset, HDF5Writer  # noqa: F401
@@ -61,8 +65,6 @@ __all__ = [
     'FolderWriter',
     'IdentityScaler',
     'ImageDataset',
-    'LanceDataset',
-    'LanceWriter',
     'LeRobotAdapter',
     'PercentileScaler',
     'ReplayBuffer',
@@ -79,3 +81,11 @@ __all__ = [
     'split_episode_data',
     'validate_write_mode',
 ]
+
+
+# ``LanceDataset``/``LanceWriter`` are bound above only when the ``[data]``
+# extra is installed. Appending them conditionally (rather than listing them
+# unconditionally in __all__) keeps ``import *`` from raising AttributeError
+# on a base install. hdf5/video/lance_video were never in __all__ and stay out.
+if 'LanceDataset' in globals():
+    __all__ += ['LanceDataset', 'LanceWriter']

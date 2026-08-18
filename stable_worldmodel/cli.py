@@ -353,8 +353,17 @@ def _inspect_lance_dataset(path) -> None:
     from pathlib import Path
 
     import numpy as np
-    import pyarrow as pa
-    import lancedb
+
+    try:
+        import lancedb
+        import pyarrow as pa
+    except ImportError:
+        print(
+            '[red]Inspecting Lance datasets needs the [data] extra.[/red]\n'
+            "Install it with [cyan]pip install 'stable-worldmodel[data]'"
+            '[/cyan].'
+        )
+        raise typer.Exit(1) from None
 
     path = Path(path)
     table_path = _resolve_lance_table(path)
@@ -526,7 +535,7 @@ def inspect(
     name: Annotated[str, typer.Argument(help='Dataset name to inspect.')],
 ):
     """Show detailed info for a dataset."""
-    from stable_worldmodel.data import detect_format
+    from stable_worldmodel.data import detect_format, list_formats
     from stable_worldmodel.data.utils import get_cache_dir
 
     cache_dir = get_cache_dir(sub_folder='datasets')
@@ -537,6 +546,14 @@ def inspect(
         raise typer.Exit(1)
 
     fmt = detect_format(path)
+    if fmt is None:
+        print(f'[red]Unrecognized dataset format: {path}[/red]')
+        print(
+            'The backing format may not be registered. Installed formats: '
+            f'{list_formats()}. Lance datasets need '
+            "[cyan]pip install 'stable-worldmodel[data]'[/cyan]."
+        )
+        raise typer.Exit(1)
     if fmt.name in ('lance', 'lance_video'):
         _inspect_lance_dataset(path)
     elif fmt.name == 'hdf5':

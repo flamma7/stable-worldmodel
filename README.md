@@ -31,9 +31,15 @@
 From PyPI:
 
 ```bash
-pip install stable-worldmodel            # base only
+pip install 'stable-worldmodel[data]'    # recommended: base + Lance dataset I/O
+pip install stable-worldmodel            # planning/model only, no dataset I/O
 pip install 'stable-worldmodel[all]'     # + training, environments, and data formats
 ```
+
+`[data]` pulls in the Lance stack (`lancedb`, `pylance`, `pyarrow`) that backs the
+default dataset format. It is a separate extra so that consumers who only need the
+solvers and world model — e.g. embedding `stable_worldmodel.planning` in a robotics
+image — are not forced to install ~410 MB of native wheels they never import.
 
 LeRobot dataset support is a separate opt-in extra (requires Python 3.12+): `pip install 'stable-worldmodel[lerobot]'`.
 

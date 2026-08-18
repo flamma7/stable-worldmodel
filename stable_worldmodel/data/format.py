@@ -79,13 +79,30 @@ def list_formats() -> list[str]:
     return list(FORMATS)
 
 
+# Formats that only register when their optional extra is installed. Used to
+# turn "unknown format 'lance'" — the error a base install hits first, since
+# lance is the default format — into an actionable message.
+_OPTIONAL_FORMAT_EXTRAS = {
+    'lance': 'data',
+    'lance_video': 'format',
+    'hdf5': 'format',
+    'video': 'format',
+    'lerobot': 'lerobot',
+}
+
+
 def get_format(name: str) -> type[Format]:
     try:
         return FORMATS[name]
     except KeyError:
-        raise ValueError(
-            f'unknown format {name!r}; available: {list_formats()}'
-        ) from None
+        msg = f'unknown format {name!r}; available: {list_formats()}'
+        extra = _OPTIONAL_FORMAT_EXTRAS.get(name)
+        if extra is not None:
+            msg += (
+                f'. The {name!r} format needs its optional dependencies: '
+                f'pip install "stable-worldmodel[{extra}]"'
+            )
+        raise ValueError(msg) from None
 
 
 def detect_format(path) -> type[Format] | None:

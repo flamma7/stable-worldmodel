@@ -20,9 +20,6 @@ dependencies = [
   "tabulate",
   "gymnasium",
   "einops",
-  "lancedb>=0.30.0",
-  "pylance>=4.0.0",
-  "pyarrow",
   "pillow",
   "tqdm",
   "typer",
@@ -40,6 +37,15 @@ train = [
     "datasets>=2.20.0",
     "hydra-submitit-launcher",
     "wandb",
+]
+
+# Lance dataset storage — the default dataset format. Split out of the base
+# install so planning-only consumers (solvers + world model, no dataset IO)
+# are not forced to pull ~410 MB of native wheels.
+data = [
+    "lancedb>=0.30.0",
+    "pylance>=4.0.0",
+    "pyarrow",
 ]
 
 env = [
@@ -61,6 +67,8 @@ format = [
     "hdf5plugin",
     "torchcodec",
     "imageio[ffmpeg]",
+    # Blob-v2 video (lance_video) is layered on the core Lance stack.
+    "stable-worldmodel[data]",
 ]
 
 lerobot = [
@@ -68,7 +76,7 @@ lerobot = [
 ]
 
 all = [
-    "stable-worldmodel[train,env,format]",
+    "stable-worldmodel[train,env,format,data]",
 ]
 
 [dependency-groups]
