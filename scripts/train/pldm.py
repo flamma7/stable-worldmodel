@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -8,7 +9,6 @@ from stable_pretraining import data as dt
 import stable_worldmodel as swm
 import torch
 from lightning.pytorch.loggers import WandbLogger
-from loguru import logger as logging
 from omegaconf import OmegaConf, open_dict
 from torch.utils.data import DataLoader
 
@@ -18,6 +18,8 @@ from stable_worldmodel.data import column_normalizer as get_column_normalizer
 from stable_worldmodel.wm.loss import PLDMLoss, TemporalStraighteningLoss
 from lightning.pytorch.callbacks import Callback
 from stable_worldmodel.wm.utils import save_pretrained
+
+logger = logging.getLogger(__name__)
 
 
 def get_img_preprocessor(source: str, target: str, img_size: int = 224):
@@ -200,7 +202,7 @@ def run(cfg):
     run_dir = Path(
         swm.data.utils.get_cache_dir(sub_folder='checkpoints'), run_id
     )
-    logging.info(f'🫆🫆🫆 Run ID: {run_id} 🫆🫆🫆')
+    logger.info(f'🫆🫆🫆 Run ID: {run_id} 🫆🫆🫆')
 
     logger = None
     if cfg.wandb.enabled:
@@ -236,4 +238,8 @@ def run(cfg):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s | %(name)s | %(message)s',
+    )
     run()

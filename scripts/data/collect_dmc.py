@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -7,7 +8,6 @@ os.environ['MUJOCO_GL'] = 'glfw'
 
 import hydra
 import numpy as np
-from loguru import logger as logging
 
 import stable_worldmodel as swm
 from stable_worldmodel.envs.dmcontrol import ExpertPolicy
@@ -26,6 +26,8 @@ ENVS = {
     'swm/ReacherDMControl-v0': ('reacher',),
     'swm/PendulumDMControl-v0': ('pendulum',),
 }
+
+logger = logging.getLogger(__name__)
 
 
 @hydra.main(version_base=None, config_path='./config', config_name='dmc')
@@ -59,8 +61,12 @@ def run(cfg):
         options=options,
     )
 
-    logging.success(' 🎉🎉🎉 Completed data collection for dmc 🎉🎉🎉')
+    logger.info(' 🎉🎉🎉 Completed data collection for dmc 🎉🎉🎉')
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s | %(name)s | %(message)s',
+    )
     run()

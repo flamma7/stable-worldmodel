@@ -1,11 +1,13 @@
 from pathlib import Path
 
 import hydra
+import logging
 import numpy as np
-from loguru import logger as logging
 
 import stable_worldmodel as swm
 from stable_worldmodel.envs.pusht import WeakPolicy
+
+logger = logging.getLogger(__name__)
 
 
 @hydra.main(version_base=None, config_path='./config', config_name='default')
@@ -26,8 +28,12 @@ def run(cfg):
             seed=rng.integers(0, 1_000_000).item(),
         )
 
-    logging.success(' 🎉🎉🎉 Completed data collection for pusht_toy 🎉🎉🎉')
+    logger.info(' 🎉🎉🎉 Completed data collection for pusht_toy 🎉🎉🎉')
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s | %(name)s | %(message)s',
+    )
     run()

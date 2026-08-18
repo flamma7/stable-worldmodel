@@ -1,3 +1,4 @@
+import logging
 import os
 
 import hydra
@@ -8,7 +9,6 @@ from lightning.pytorch.callbacks import Callback
 from stable_worldmodel.data import column_normalizer as get_column_normalizer
 from stable_worldmodel.wm.utils import save_pretrained
 from lightning.pytorch.loggers import WandbLogger
-from loguru import logger as logging
 from omegaconf import OmegaConf, open_dict
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
@@ -19,6 +19,10 @@ import stable_worldmodel as swm
 # ============================================================================
 # Data Setup
 # ============================================================================
+
+logger = logging.getLogger(__name__)
+
+
 def get_data(cfg):
     """Setup dataset with image transforms and normalization."""
 
@@ -86,11 +90,11 @@ def get_data(cfg):
             lengths=[train_subset_fraction, 1 - train_subset_fraction],
             generator=rnd_gen,
         )
-        logging.info(
+        logger.info(
             f'Using {train_subset_fraction:.1%} of training data: {len(train_set)} samples'
         )
 
-    logging.info(f'Train: {len(train_set)}, Val: {len(val_set)}')
+    logger.info(f'Train: {len(train_set)}, Val: {len(val_set)}')
 
     train = DataLoader(
         train_set,
@@ -159,7 +163,7 @@ def get_gcbc_policy(cfg):
         # Compute action MSE
         action_loss = F.mse_loss(action_pred, action_target)
         if torch.isnan(action_loss):
-            logging.error(
+            logger.error(
                 f'NaN loss! action_pred has nan: {torch.isnan(action_pred).any()}, action_target has nan: {torch.isnan(action_target).any()}'
             )
         batch['loss'] = action_loss
@@ -197,7 +201,7 @@ def get_gcbc_policy(cfg):
     if use_proprio:
         embedding_dim += cfg.wm.proprio_embed_dim  # concatenated to patches
 
-    logging.info(
+    logger.info(
         f'Patches: {num_patches}, Embedding dim: {embedding_dim}, '
         f'Action dim: {effective_act_dim}, Proprio encoder: {use_proprio}'
     )
@@ -340,4 +344,8 @@ def run(cfg):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s | %(name)s | %(message)s',
+    )
     run()

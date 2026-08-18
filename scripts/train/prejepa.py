@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -11,7 +12,6 @@ from functools import partial
 from stable_worldmodel.data import column_normalizer as get_column_normalizer
 from stable_worldmodel.wm.utils import save_pretrained
 from lightning.pytorch.loggers import WandbLogger
-from loguru import logger as logging
 from omegaconf import OmegaConf, open_dict
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
@@ -21,6 +21,8 @@ from transformers import AutoVideoProcessor
 # ---------------------------------------------------------------------------
 # Data helpers
 # ---------------------------------------------------------------------------
+
+logger = logging.getLogger(__name__)
 
 
 def get_img_preprocessor(source, target, img_size=224):
@@ -281,7 +283,7 @@ def run(cfg):
         swm.data.utils.get_cache_dir(sub_folder='checkpoints'), run_id
     )
     run_dir.mkdir(parents=True, exist_ok=True)
-    logging.info(f'Run ID: {run_id}')
+    logger.info(f'Run ID: {run_id}')
 
     with open(run_dir / 'config.yaml', 'w') as f:
         OmegaConf.save(cfg, f)
@@ -317,4 +319,8 @@ def run(cfg):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s | %(name)s | %(message)s',
+    )
     run()

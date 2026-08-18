@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -9,7 +10,6 @@ import hydra
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from loguru import logger as logging
 from omegaconf import OmegaConf
 from sklearn import preprocessing
 from torchvision.transforms import v2 as transforms
@@ -24,6 +24,8 @@ from utils import get_state_grid
 # ============================================================================
 # Dataset Loading
 # ============================================================================
+
+logger = logging.getLogger(__name__)
 
 
 def get_dataset(cfg, dataset_name):
@@ -87,7 +89,7 @@ def get_env(cfg):
         )
 
     dataset = get_dataset(cfg, training_dataset_name)
-    logging.info(
+    logger.info(
         f'Fitting preprocessing scalers on dataset: {training_dataset_name}'
     )
 
@@ -385,7 +387,7 @@ def plot_value_maps(
         values_2d = values.reshape(height, width)
 
         # print statistics of values for this reference
-        logging.info(
+        logger.info(
             f'Reference {ref_idx}: Value stats - min: {values.min():.4f}, max: {values.max():.4f}, mean: {values.mean():.4f}, std: {values.std():.4f}'
         )
 
@@ -415,7 +417,7 @@ def plot_value_maps(
     plt.suptitle('Value Function Visualization', fontsize=16)
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.savefig(save_path, format='pdf')
-    logging.info(f'Value maps saved to {save_path}')
+    logger.info(f'Value maps saved to {save_path}')
     plt.close(fig)
 
 
@@ -446,9 +448,9 @@ def run(cfg):
     cfg.cache_dir = cache_dir
 
     for dataset_name, dataset_cfg in cfg.datasets.items():
-        logging.info('==============================')
-        logging.info(f'Processing dataset: {dataset_name}')
-        logging.info('==============================')
+        logger.info('==============================')
+        logger.info(f'Processing dataset: {dataset_name}')
+        logger.info('==============================')
 
         local_cfg = make_runtime_cfg(cfg, dataset_cfg)
         wm_cfg = local_cfg.world_model
@@ -470,7 +472,7 @@ def run(cfg):
         ]
 
         # --- Collect embeddings and compute values ---
-        logging.info('Computing embeddings and value function...')
+        logger.info('Computing embeddings and value function...')
         grid, embeddings, pixels_variations, values_per_ref = (
             collect_embeddings_and_values(
                 model, env, process, transform, local_cfg, ref_indices
@@ -500,10 +502,14 @@ def run(cfg):
                 save_path=valuemap_save_path,
             )
 
-        logging.info(f'Finished dataset: {dataset_name}')
+        logger.info(f'Finished dataset: {dataset_name}')
 
-    logging.info('All datasets processed.')
+    logger.info('All datasets processed.')
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s | %(name)s | %(message)s',
+    )
     run()

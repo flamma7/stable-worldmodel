@@ -1,6 +1,7 @@
 from collections import OrderedDict
 
 import hydra
+import logging
 import matplotlib.animation as animation
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -8,7 +9,6 @@ import numpy as np
 import stable_pretraining as spt
 import torch
 from einops import rearrange
-from loguru import logger as logging
 from omegaconf import OmegaConf, open_dict
 from scipy.interpolate import interp1d
 from sklearn.decomposition import PCA
@@ -29,6 +29,8 @@ DINO_PATCH_SIZE = 14  # DINO encoder uses 14x14 patches
 # ============================================================================
 # Data Loading
 # ============================================================================
+
+logger = logging.getLogger(__name__)
 
 
 def get_data(cfg, dataset_cfg, model_cfg):
@@ -201,7 +203,7 @@ def get_world_model(cfg, model_cfg):
             emb_dim for emb_dim in model_cfg.get('encoding', {}).values()
         )  # add all extra dims
 
-        logging.info(f'Patches: {num_patches}, Embedding dim: {embedding_dim}')
+        logger.info(f'Patches: {num_patches}, Embedding dim: {embedding_dim}')
 
         # Build causal predictor (transformer that predicts next latent states)
 
@@ -255,7 +257,7 @@ def collect_embeddings(cfg, exp_cfg):
     trajs = get_data(cfg, exp_cfg.dataset, exp_cfg.world_model)
     world_model = get_world_model(cfg, exp_cfg.world_model)
 
-    logging.info(
+    logger.info(
         f'Encoding dataset: {exp_cfg.dataset.dataset_name} using model: {exp_cfg.world_model.model_name}...'
     )
     trajs_embeddings = []  # list to store the embeddings of the trajectories (T x D)
@@ -439,7 +441,7 @@ def plot_static_trajectories(
     plt.tight_layout()
     plt.savefig(output_file)
     plt.close()
-    logging.info(f'Static trajectory plot saved to {output_file}')
+    logger.info(f'Static trajectory plot saved to {output_file}')
 
 
 def create_video_visualization(
@@ -575,7 +577,7 @@ def create_video_visualization(
 
         return artists
 
-    logging.info(f'Generating animation with {n_rows} trajectories...')
+    logger.info(f'Generating animation with {n_rows} trajectories...')
     ani = animation.FuncAnimation(
         fig, update, frames=max_len, interval=100, blit=True
     )
@@ -589,13 +591,13 @@ def create_video_visualization(
                 imageio_ffmpeg.get_ffmpeg_exe()
             )
         except Exception as exc:  # noqa: BLE001
-            logging.warning(
+            logger.warning(
                 f'Could not locate ffmpeg via imageio-ffmpeg: {exc}'
             )
     writer = animation.FFMpegWriter(fps=10, codec='libx264')
     ani.save(output_file, writer=writer)
     plt.close()
-    logging.info(f'Animation saved to {output_file}')
+    logger.info(f'Animation saved to {output_file}')
 
 
 # ============================================================================
@@ -641,7 +643,7 @@ def run(cfg):
                     trajectory_lengths.append(emb.shape[0])
 
     if not all_embeddings_list:
-        logging.warning('No embeddings generated.')
+        logger.warning('No embeddings generated.')
         return
 
     # Check dims
@@ -666,13 +668,13 @@ def run(cfg):
 
     # Run dimensionality reduction:
     if cfg.dimensionality_reduction == 'tsne':
-        logging.info(
+        logger.info(
             f'Computing t-SNE on {full_embeddings.shape[0]} points (Truth + Pred)...'
         )
         tsne = TSNE(n_components=2, random_state=cfg.seed)
         embeddings_2d_flat = tsne.fit_transform(full_embeddings)
     elif cfg.dimensionality_reduction == 'pca':
-        logging.info(
+        logger.info(
             f'Computing PCA on {full_embeddings.shape[0]} points (Truth + Pred)...'
         )
         pca = PCA(n_components=2, random_state=cfg.seed)
@@ -682,7 +684,7 @@ def run(cfg):
             f'Unsupported dimensionality reduction method: {cfg.dimensionality_reduction}'
         )
 
-    logging.info(
+    logger.info(
         f'Dimensionality reduction completed. Output shape: {embeddings_2d_flat.shape}'
     )
 
@@ -721,4 +723,8 @@ def run(cfg):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s | %(name)s | %(message)s',
+    )
     run()

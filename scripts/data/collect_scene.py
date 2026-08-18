@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -5,11 +6,12 @@ os.environ['MUJOCO_GL'] = 'egl'
 
 import hydra
 import numpy as np
-from loguru import logger as logging
 from omegaconf import DictConfig, OmegaConf
 
 import stable_worldmodel as swm
 from stable_worldmodel.envs.ogbench import ExpertPolicy
+
+logger = logging.getLogger(__name__)
 
 
 @hydra.main(version_base=None, config_path='./config', config_name='ogb')
@@ -42,10 +44,12 @@ def run(cfg: DictConfig):
         options=options,
     )
 
-    logging.success(
-        '🎉🎉🎉 Completed data collection for ogbench scene  🎉🎉🎉'
-    )
+    logger.info('🎉🎉🎉 Completed data collection for ogbench scene  🎉🎉🎉')
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s | %(name)s | %(message)s',
+    )
     run()

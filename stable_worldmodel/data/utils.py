@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import urllib.request
 from pathlib import Path
@@ -8,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
-from loguru import logger as logging
 from tqdm import tqdm
 
 from stable_worldmodel.utils import DEFAULT_CACHE_DIR, HF_BASE_URL
@@ -23,6 +23,8 @@ if TYPE_CHECKING:
     from stable_pretraining.data.transforms import WrapTorchTransform
 
     from stable_worldmodel.data.dataset import Dataset
+
+logger = logging.getLogger(__name__)
 
 
 def get_cache_dir(
@@ -201,10 +203,10 @@ def _resolve_dataset_hf(repo_id: str, datasets_dir: Path) -> Path:
     local_dir = datasets_dir / repo_id.replace('/', '--')
 
     if local_dir.is_dir() and any(local_dir.iterdir()):
-        logging.info(f'Using cached dataset for {repo_id} at {local_dir}')
+        logger.info(f'Using cached dataset for {repo_id} at {local_dir}')
         return local_dir
 
-    logging.info(f'Downloading dataset {repo_id} from HuggingFace...')
+    logger.info(f'Downloading dataset {repo_id} from HuggingFace...')
     local_dir.mkdir(parents=True, exist_ok=True)
 
     entry = _hf_find_dataset_entry(repo_id)
@@ -225,7 +227,7 @@ def _resolve_dataset_hf(repo_id: str, datasets_dir: Path) -> Path:
         url = f'{HF_BASE_URL}/datasets/{repo_id}/resolve/main/{entry_path}'
         dest = local_dir / entry_path
         dest.parent.mkdir(parents=True, exist_ok=True)
-        logging.info(f'Fetching {url}')
+        logger.info(f'Fetching {url}')
         _download(url, dest)
 
     return local_dir
@@ -289,7 +291,7 @@ def convert(
     if carry_episode_data and not getattr(
         writer_cls, 'supports_episode_data', False
     ):
-        logging.warning(
+        logger.warning(
             f"convert: destination format '{dest_format}' does not support "
             f'episode data; dropping episode columns {ep_cols}.'
         )
@@ -401,7 +403,7 @@ def merge(
     if carry_episode_data and not getattr(
         writer_cls, 'supports_episode_data', False
     ):
-        logging.warning(
+        logger.warning(
             f"merge: destination format '{dest_format}' does not support "
             f'episode data; dropping episode columns {sorted(ep_reference)}.'
         )

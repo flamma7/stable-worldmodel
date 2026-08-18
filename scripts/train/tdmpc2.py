@@ -2,18 +2,20 @@ from functools import partial
 from pathlib import Path
 import hydra
 import lightning as pl
+import logging
 import stable_pretraining as spt
 import stable_worldmodel as swm
 import torch
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.loggers import WandbLogger
-from loguru import logger as logging
 from omegaconf import OmegaConf, open_dict
 from torch.utils.data import DataLoader
 import numpy as np
 
 from stable_worldmodel.wm.tdmpc2 import tdmpc2_forward
 from stable_worldmodel.wm.utils import save_pretrained
+
+logger = logging.getLogger(__name__)
 
 
 class SaveCkptCallback(Callback):
@@ -133,7 +135,7 @@ def run(cfg):
         base_dataset._cache[goal_obs_key] = np.concatenate(
             [_raw_obs, goals_by_step], axis=-1
         )
-        logging.info(
+        logger.info(
             f'Goal augmentation: appended last obs of each episode to "{goal_obs_key}" '
             f'(dim {_raw_obs.shape[-1]} → {base_dataset._cache[goal_obs_key].shape[-1]})'
         )
@@ -144,7 +146,7 @@ def run(cfg):
     act_min = valid_actions.min()
 
     if act_max > 1.01 or act_min < -1.01:
-        logging.error(
+        logger.error(
             f'Dataset actions fall outside the [-1, 1] range! (Min: {act_min:.2f}, Max: {act_max:.2f}).\n'
             'TD-MPC2 uses a Tanh actor and strictly requires actions to be bounded between [-1, 1].\n'
             'Please normalize your dataset actions.'
@@ -267,4 +269,8 @@ def run(cfg):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s | %(name)s | %(message)s',
+    )
     run()

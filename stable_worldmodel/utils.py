@@ -1,5 +1,6 @@
 """Utility functions for stable_worldmodel."""
 
+import logging
 import os
 
 
@@ -11,10 +12,11 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from loguru import logger as logging
 
 DEFAULT_CACHE_DIR = os.path.expanduser('~/.stable_worldmodel')
 HF_BASE_URL = 'https://huggingface.co'
+
+logger = logging.getLogger(__name__)
 
 
 def exists(val: Any) -> bool:
@@ -54,7 +56,7 @@ def pretraining(
     if not os.path.isfile(script_path):
         raise ValueError(f'Script {script_path} does not exist.')
 
-    logging.info(
+    logger.info(
         f'🏃🏃🏃 Running pretraining script: {script_path} with args: {args} 🏃🏃🏃'
     )
     env = os.environ.copy()
@@ -67,7 +69,7 @@ def pretraining(
     except subprocess.CalledProcessError as e:
         sys.exit(e.returncode)
 
-    logging.info('🏁🏁🏁 Pretraining script finished 🏁🏁🏁')
+    logger.info('🏁🏁🏁 Pretraining script finished 🏁🏁🏁')
 
 
 def flatten_dict(d: dict, parent_key: str = '', sep: str = '.') -> dict:

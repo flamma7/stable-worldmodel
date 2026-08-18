@@ -3,6 +3,8 @@ forwarding (Merge/Concat), and convert carry-through."""
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 
 from stable_worldmodel.data import (
@@ -156,20 +158,18 @@ def test_convert_lance_to_lance_carries_episode_data(tmp_path):
     assert ds.get_episode_data()['model_xml'] == ['<scene 0/>', '<scene 1/>']
 
 
-def test_convert_to_folder_drops_episode_data_with_warning(tmp_path):
-    from loguru import logger
-
+def test_convert_to_folder_drops_episode_data_with_warning(tmp_path, caplog):
     src = tmp_path / 'src.lance'
     _write_lance_with_episode_data(src)
 
     dest = tmp_path / 'folder_out'
-    messages: list[str] = []
-    sink_id = logger.add(lambda m: messages.append(str(m)), level='WARNING')
-    try:
+    with caplog.at_level(
+        logging.WARNING, logger='stable_worldmodel.data.utils'
+    ):
         convert(str(src), str(dest), dest_format='folder', progress=False)
-    finally:
-        logger.remove(sink_id)
-    assert any('does not support episode data' in m for m in messages)
+    assert any(
+        'does not support episode data' in r.message for r in caplog.records
+    )
 
     # Round the folder back into lance: the episode data is gone for good
     # (proving the folder writer never received the reserved key).

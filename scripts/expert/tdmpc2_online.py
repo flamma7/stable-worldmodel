@@ -38,6 +38,7 @@ Usage:
     python tdmpc2_online.py --domain walker --steps 1000000 --seed 1
 """
 
+import logging
 import os
 
 os.environ['MUJOCO_GL'] = 'egl'
@@ -53,7 +54,6 @@ import torch
 import gymnasium as gym
 from gymnasium import spaces
 from omegaconf import OmegaConf, open_dict
-from loguru import logger as logging
 
 from stable_worldmodel.data.buffer import ReplayBuffer
 from stable_worldmodel.planning.solver.cem import CEMSolver
@@ -147,6 +147,8 @@ GRAD_STEPS = 1
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 _CONFIG_PATH = Path(__file__).parent / 'config' / 'tdmpc2_online.yaml'
 _DEVNULL = open(os.devnull, 'w')
+
+logger = logging.getLogger(__name__)
 
 
 def load_cfg(obs_dim: int, action_dim: int, discount: float) -> OmegaConf:
@@ -282,7 +284,7 @@ def update_model(
 
 def save_checkpoint(model: TDMPC2, save_dir: Path, tag: str):
     torch.save(model, save_dir / f'{tag}_model.pt')
-    logging.info(f'  Checkpoint saved → {tag}')
+    logger.info(f'  Checkpoint saved → {tag}')
 
 
 @torch.no_grad()
@@ -330,11 +332,11 @@ def train_task(
 
     use_wandb = use_wandb and WANDB_AVAILABLE
 
-    logging.info(f'\n{"=" * 60}')
-    logging.info(
+    logger.info(f'\n{"=" * 60}')
+    logger.info(
         f'TD-MPC2 | {domain}-{task} | {total_steps:,} steps | device={DEVICE}'
     )
-    logging.info(f'{"=" * 60}')
+    logger.info(f'{"=" * 60}')
 
     pool = EnvPool(
         [lambda: make_env(gym_id, task=task) for _ in range(N_COLLECT_ENVS)]
@@ -352,7 +354,7 @@ def train_task(
     cfg = load_cfg(obs_dim=obs_dim, action_dim=action_dim, discount=discount)
     horizon = cfg.wm.horizon
 
-    logging.info(
+    logger.info(
         f'  obs_dim={obs_dim} | action_dim={action_dim} | '
         f'horizon={horizon} | discount={discount:.4f} | '
         f'max_ep_steps={max_ep_steps}'
@@ -438,7 +440,7 @@ def train_task(
                 cur_obs[i].clear()
                 cur_act[i].clear()
                 cur_rew[i].clear()
-                logging.info(
+                logger.info(
                     f'[{domain}-{task}] step={step:,} | ep_reward={ep_reward[i]:.2f} | ep_len={ep_steps[i]}'
                 )
                 if use_wandb:
@@ -468,7 +470,7 @@ def train_task(
                 }
                 metrics = update_model(model, batch, cfg, optimizers)
             if step % 5_000 == 0:
-                logging.info(
+                logger.info(
                     f'[{domain}-{task}] step={step:,} | '
                     f'loss={metrics["loss"]:.4f} | '
                     f'rew={metrics["reward_loss"]:.4f} | '
@@ -491,7 +493,7 @@ def train_task(
 
         if step % EVAL_FREQ == 0 and step >= SEED_STEPS:
             eval_r = evaluate(model, gym_id, task)
-            logging.info(
+            logger.info(
                 f'[{domain}-{task}] *** EVAL step={step:,} | mean_reward={eval_r:.2f} ***'
             )
             if use_wandb:
@@ -499,10 +501,10 @@ def train_task(
             if eval_r > best_eval:
                 best_eval = eval_r
                 save_checkpoint(model, save_dir, tag='best')
-                logging.info(f'[{domain}-{task}] New best: {best_eval:.2f}')
+                logger.info(f'[{domain}-{task}] New best: {best_eval:.2f}')
 
     save_checkpoint(model, save_dir, tag='final')
-    logging.info(f'[{domain}-{task}] Done. Best eval reward: {best_eval:.2f}')
+    logger.info(f'[{domain}-{task}] Done. Best eval reward: {best_eval:.2f}')
     pool.close()
     del model
     if torch.cuda.is_available():
@@ -550,24 +552,22 @@ def main():
 
     if args.list:
         for domain, tasks in TASK_REGISTRY.items():
-            logging.info(f'[{domain}]: {", ".join(tasks.keys())}')
+            logger.info(f'[{domain}]: {", ".join(tasks.keys())}')
         return
 
     if not args.domain:
-        logging.error(
-            'Please specify --domain (or use --list to see options).'
-        )
+        logger.error('Please specify --domain (or use --list to see options).')
         sys.exit(1)
 
     domain = args.domain.lower()
     if domain not in TASK_REGISTRY:
-        logging.error(
+        logger.error(
             f"Domain '{domain}' not found. Use --list to see options."
         )
         sys.exit(1)
 
     if args.task and args.task not in TASK_REGISTRY[domain]:
-        logging.error(
+        logger.error(
             f"Task '{args.task}' not found in domain '{domain}'. "
             f'Available: {", ".join(TASK_REGISTRY[domain].keys())}'
         )
@@ -600,4 +600,8 @@ def main():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s | %(name)s | %(message)s',
+    )
     main()

@@ -1,5 +1,7 @@
 """Tests for LagrangianSolver class."""
 
+import logging
+
 import numpy as np
 import pytest
 import torch
@@ -759,13 +761,15 @@ def test_configure_non_box_action_space_warns(caplog):
     solver = make_solver()
     discrete_space = gym_spaces.Discrete(5)
 
-    # loguru captures to stdlib when propagate=True; use capfd or just check no crash
-    # The warning is emitted via loguru — we just verify configure() doesn't raise
-    solver.configure(
-        action_space=discrete_space,
-        n_envs=2,
-        config=PlanConfig(horizon=4, receding_horizon=1, action_block=1),
-    )
+    with caplog.at_level(
+        logging.WARNING, logger='stable_worldmodel.planning.solver.lagrangian'
+    ):
+        solver.configure(
+            action_space=discrete_space,
+            n_envs=2,
+            config=PlanConfig(horizon=4, receding_horizon=1, action_block=1),
+        )
+    assert any('Action space is discrete' in r.message for r in caplog.records)
     assert (
         solver._configured
     )  # configure still succeeds despite wrong space type

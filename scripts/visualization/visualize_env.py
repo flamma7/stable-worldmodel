@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -13,7 +14,6 @@ import numpy as np
 import stable_pretraining as spt
 import torch
 from einops import rearrange
-from loguru import logger as logging
 from omegaconf import OmegaConf, open_dict
 from sklearn import preprocessing
 from sklearn.decomposition import PCA
@@ -39,6 +39,8 @@ DINO_PATCH_SIZE = 14  # DINO encoder uses 14x14 patches
 # ============================================================================
 # Setting up Environment, transform and processing
 # ============================================================================
+
+logger = logging.getLogger(__name__)
 
 
 def img_transform():
@@ -103,7 +105,7 @@ def get_env(cfg):
 
     def _make_scaler(key, target_dim, mean, std):
         if target_dim is None:
-            logging.warning(
+            logger.warning(
                 f"Missing target dim for '{key}', skipping standardization."
             )
             return None
@@ -117,7 +119,7 @@ def get_env(cfg):
             or mean.shape[0] != target_dim
             or std.shape[0] != target_dim
         ):
-            logging.warning(
+            logger.warning(
                 f"Stats for '{key}' do not match dim {target_dim}; using identity standardization."
             )
             mean = np.zeros(target_dim, dtype=np.float32)
@@ -314,7 +316,7 @@ def get_world_model(cfg):
         emb_dim for emb_dim in cfg.world_model.get('encoding', {}).values()
     )  # add all extra dims
 
-    logging.info(f'Patches: {num_patches}, Embedding dim: {embedding_dim}')
+    logger.info(f'Patches: {num_patches}, Embedding dim: {embedding_dim}')
 
     print('>>>> DIM PREDICTOR:', embedding_dim)
 
@@ -429,7 +431,7 @@ def compute_dimensionality_reduction(embeddings, cfg):
     """
     Computes t-SNE projection on the collected embeddings.
     """
-    logging.info(
+    logger.info(
         f'Computing dimensionality reduction with {cfg.dimensionality_reduction}'
     )
     # Flatten if embeddings are spatial (e.g. from patch tokens)
@@ -533,7 +535,7 @@ def plot_distance_maps(
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     # Save as PDF
     plt.savefig(save_path, format='pdf')
-    logging.info(f'Distance maps saved to {save_path}')
+    logger.info(f'Distance maps saved to {save_path}')
     plt.close(fig)
 
 
@@ -619,7 +621,7 @@ def plot_representations(
 
     plt.tight_layout()
     plt.savefig(save_path, format='pdf')
-    logging.info(f'Visualization saved to {save_path}')
+    logger.info(f'Visualization saved to {save_path}')
     plt.close(fig)
 
 
@@ -669,7 +671,7 @@ def plot_rotation_representations(
 
     plt.tight_layout()
     plt.savefig(save_path, format='pdf')
-    logging.info(f'Rotation visualization saved to {save_path}')
+    logger.info(f'Rotation visualization saved to {save_path}')
     plt.close(fig)
 
 
@@ -701,9 +703,9 @@ def run(cfg):
     cfg.cache_dir = cache_dir
 
     for dataset_name, dataset_cfg in cfg.datasets.items():
-        logging.info('==============================')
-        logging.info(f'Processing dataset: {dataset_name}')
-        logging.info('==============================')
+        logger.info('==============================')
+        logger.info(f'Processing dataset: {dataset_name}')
+        logger.info('==============================')
 
         local_cfg = make_runtime_cfg(cfg, dataset_cfg)
         wm_cfg = local_cfg.world_model
@@ -722,7 +724,7 @@ def run(cfg):
 
         if visualization_mode == 'rotation':
             # --- Rotation sweep: fixed agent/block positions, varying T angle ---
-            logging.info('Computing rotation embeddings from environment...')
+            logger.info('Computing rotation embeddings from environment...')
             angles, emb_list, pix_list = collect_rotation_embeddings(
                 world_model, env, process, transform, local_cfg
             )
@@ -730,7 +732,7 @@ def run(cfg):
             all_embeddings = torch.cat(emb_list, dim=0).cpu().numpy()
             all_embeddings = rearrange(all_embeddings, 'b ... -> b (...)')
 
-            logging.info(
+            logger.info(
                 f'Computing {local_cfg.dimensionality_reduction} '
                 f'for {all_embeddings.shape[0]} rotation samples...'
             )
@@ -751,7 +753,7 @@ def run(cfg):
 
         else:
             # --- Default: grid sweep over agent/block XY translations ---
-            logging.info('Computing embeddings from environment...')
+            logger.info('Computing embeddings from environment...')
             grid, embeddings_variations, pixels_variations = (
                 collect_embeddings(
                     world_model, env, process, transform, local_cfg
@@ -771,7 +773,7 @@ def run(cfg):
             samples_per_variation = all_embeddings_list[0].shape[0]
 
             # --- Dimensionality reduction ---
-            logging.info(
+            logger.info(
                 f'Computing global {local_cfg.dimensionality_reduction} '
                 f'for {num_variations} variations '
                 f'({all_embeddings_global.shape[0]} samples)...'
@@ -817,10 +819,14 @@ def run(cfg):
                     save_path=distmap_save_path,
                 )
 
-        logging.info(f'Finished dataset: {dataset_name}')
+        logger.info(f'Finished dataset: {dataset_name}')
 
-    logging.info('All datasets processed.')
+    logger.info('All datasets processed.')
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s | %(name)s | %(message)s',
+    )
     run()

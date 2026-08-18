@@ -1,5 +1,6 @@
 """Stable World Model CLI commands."""
 
+import logging
 from importlib.metadata import version as pkg_version
 
 from typing import Annotated
@@ -1016,6 +1017,14 @@ def main(
     ] = None,
 ):
     """Stable World Model - World Model Research Made Simple."""
+    # The library logs through stdlib ``logging`` and, like any library,
+    # installs no handler of its own. The CLI is an application, so it is the
+    # one place allowed to configure the root logger — without this, every
+    # ``logger.info`` in the package would be silently dropped.
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s | %(name)s | %(message)s',
+    )
 
 
 if __name__ == '__main__':

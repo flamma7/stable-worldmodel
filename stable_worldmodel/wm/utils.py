@@ -1,13 +1,15 @@
 import json
+import logging
 import urllib.request
 from pathlib import Path
 import torch
 
-from loguru import logger as logging
 from tqdm import tqdm
 
 from stable_worldmodel.utils import HF_BASE_URL
 from stable_worldmodel.data import get_cache_dir, ensure_dir_exists
+
+logger = logging.getLogger(__name__)
 
 
 def save_pretrained(
@@ -27,7 +29,7 @@ def save_pretrained(
     torch.save(model.state_dict(), checkpoint_path)
 
     if config is None:
-        logging.warning('No config! Loading will have to be done manually.')
+        logger.warning('No config! Loading will have to be done manually.')
         return
 
     if config_key is not None and config_key in config:
@@ -40,7 +42,7 @@ def save_pretrained(
     with open(config_path, 'w') as f:
         json.dump(config, f, indent=2)
 
-    logging.info(f'📦📦📦 Model saved to {checkpoint_path} 📦📦📦')
+    logger.info(f'📦📦📦 Model saved to {checkpoint_path} 📦📦📦')
 
     return
 
@@ -135,7 +137,7 @@ def _resolve_folder(folder: Path) -> tuple[Path, dict]:
             f'Ambiguous checkpoint: multiple .pt files in {folder}. '
             'Specify the file directly.'
         )
-    logging.info(f'Loading checkpoint from folder {folder}...')
+    logger.info(f'Loading checkpoint from folder {folder}...')
     return pt_files[0], _load_config(folder)
 
 
@@ -147,15 +149,15 @@ def _resolve_hf(repo_id: str, cache_dir: Path) -> tuple[Path, dict]:
     local_dir = cache_dir / f'models--{repo_id.replace("/", "--")}'
 
     if local_dir.is_dir():
-        logging.info(f'Loading {repo_id} from local cache...')
+        logger.info(f'Loading {repo_id} from local cache...')
         return _resolve_folder(local_dir)
 
-    logging.info(f'Downloading {repo_id} from HuggingFace...')
+    logger.info(f'Downloading {repo_id} from HuggingFace...')
     local_dir.mkdir(parents=True, exist_ok=True)
     for filename in ('config.json', 'weights.pt'):
         url = f'{HF_BASE_URL}/{repo_id}/resolve/main/{filename}'
         dest = local_dir / filename
-        logging.info(f'Fetching {url}')
+        logger.info(f'Fetching {url}')
         _download(url, dest)
 
     return _resolve_folder(local_dir)

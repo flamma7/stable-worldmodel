@@ -1,13 +1,15 @@
 """Extended Gymnasium spaces with state tracking and constraint support."""
 
+import logging
 import time
 from typing import Any
 from collections.abc import Callable, Generator, Iterable, Sequence
 
 from gymnasium import spaces
-from loguru import logger as logging
 
 import stable_worldmodel as swm
+
+logger = logging.getLogger(__name__)
 
 
 def reset_variation_space(
@@ -113,7 +115,7 @@ class Discrete(spaces.Discrete):
             True if the current value is valid, False otherwise.
         """
         if not self.constrain_fn(self.value):
-            logging.warning(
+            logger.warning(
                 f'Discrete: value {self.value} does not satisfy constrain_fn'
             )
             return False
@@ -153,7 +155,7 @@ class Discrete(spaces.Discrete):
                 warn_after_s is not None
                 and (time.time() - start) > warn_after_s
             ):
-                logging.warning(
+                logger.warning(
                     'rejection sampling: rejection sampling is taking a while...'
                 )
         raise RuntimeError(
@@ -246,7 +248,7 @@ class MultiDiscrete(spaces.MultiDiscrete):
             True if current values are valid, False otherwise.
         """
         if not self.constrain_fn(self.value):
-            logging.warning(
+            logger.warning(
                 f'MultiDiscrete: value {self.value} does not satisfy constrain_fn'
             )
             return False
@@ -286,7 +288,7 @@ class MultiDiscrete(spaces.MultiDiscrete):
                 warn_after_s is not None
                 and (time.time() - start) > warn_after_s
             ):
-                logging.warning(
+                logger.warning(
                     'rejection sampling: rejection sampling is taking a while...'
                 )
         raise RuntimeError(
@@ -383,7 +385,7 @@ class Box(spaces.Box):
             True if the current value is valid, False otherwise.
         """
         if not self.constrain_fn(self.value):
-            logging.warning(
+            logger.warning(
                 f'Box: value {self.value} does not satisfy constrain_fn'
             )
             return False
@@ -423,7 +425,7 @@ class Box(spaces.Box):
                 warn_after_s is not None
                 and (time.time() - start) > warn_after_s
             ):
-                logging.warning(
+                logger.warning(
                     'rejection sampling: rejection sampling is taking a while...'
                 )
         raise RuntimeError(
@@ -525,7 +527,7 @@ class Dict(spaces.Dict):
             missing_keys = set(self.spaces.keys()).difference(
                 set(sampling_order)
             )
-            logging.warning(
+            logger.warning(
                 f'Dict sampling_order is missing keys {missing_keys}, adding them at the end of the sampling order'
             )
             self._sampling_order = list(sampling_order) + [
@@ -549,7 +551,7 @@ class Dict(spaces.Dict):
             if hasattr(v, 'init_value'):
                 init_val[k] = v.init_value
             else:
-                logging.warning(
+                logger.warning(
                     f'Space {k} of type {type(v)} does not have init_value property, using default sample instead'
                 )
                 init_val[k] = v.sample()
@@ -661,7 +663,7 @@ class Dict(spaces.Dict):
             if hasattr(v, 'check'):
                 if not v.check():
                     if debug:
-                        logging.warning(f'Dict: space {k} failed check()')
+                        logger.warning(f'Dict: space {k} failed check()')
                     return False
         return True
 
@@ -725,7 +727,7 @@ class Dict(spaces.Dict):
                 warn_after_s is not None
                 and (time.time() - start) > warn_after_s
             ):
-                logging.warning('rejection sampling is taking a while...')
+                logger.warning('rejection sampling is taking a while...')
 
         raise RuntimeError(
             f'constrain_fn not satisfied after {max_tries} draws'

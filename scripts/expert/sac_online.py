@@ -1,5 +1,6 @@
 """Script for training SAC expert policies on DMControl environments."""
 
+import logging
 import os
 
 os.environ['MUJOCO_GL'] = 'egl'
@@ -12,7 +13,6 @@ from typing import Any
 import gymnasium as gym
 import numpy as np
 import torch
-from loguru import logger
 from stable_baselines3 import SAC
 from stable_baselines3.common.callbacks import (
     BaseCallback,
@@ -172,6 +172,8 @@ PARAMS_REGISTRY = {
         'run': {**HUMANOID_CFG, 'total_timesteps': 5_000_000},
     },
 }
+
+logger = logging.getLogger(__name__)
 
 
 class RewardLoggerCallback(BaseCallback):
@@ -384,9 +386,7 @@ class DMControlTrainer:
 
             model.save(self.save_dir / 'expert_policy')
             vec_env.save(str(self.save_dir / 'vec_normalize.pkl'))
-            logger.success(
-                f'Completed training for {self.domain}::{self.task}'
-            )
+            logger.info(f'Completed training for {self.domain}::{self.task}')
 
         except Exception as e:
             logger.error(
@@ -486,4 +486,8 @@ def main():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s | %(name)s | %(message)s',
+    )
     main()

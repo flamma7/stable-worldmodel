@@ -1,5 +1,6 @@
 """Gradient-based solver for model-based planning."""
 
+import logging
 import time
 from typing import Any
 
@@ -7,11 +8,12 @@ import gymnasium as gym
 import numpy as np
 import torch
 from gymnasium.spaces import Box
-from loguru import logger as logging
 
 from .utils import prepare_init_action
 from .callbacks import Callback
 from .solver import Costable
+
+logger = logging.getLogger(__name__)
 
 
 class GradientSolver(torch.nn.Module):
@@ -89,7 +91,7 @@ class GradientSolver(torch.nn.Module):
         self._configured = True
 
         if not isinstance(action_space, Box):
-            logging.warning(
+            logger.warning(
                 f'Action space is discrete, got {type(action_space)}. GradientSolver may not work as expected.'
             )
 

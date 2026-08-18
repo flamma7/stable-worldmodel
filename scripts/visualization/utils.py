@@ -1,13 +1,15 @@
 """Shared grid utilities for environment visualization."""
 
+import logging
 import torch
 import torch.nn as nn
 import numpy as np
-from loguru import logger as logging
 
 from stable_worldmodel.envs.ogbench.cube_env import CubeEnv
 from stable_worldmodel.envs.pusht.env import PushT
 from stable_worldmodel.envs.two_room.env import TwoRoomEnv
+
+logger = logging.getLogger(__name__)
 
 
 class LeWMAdapter(nn.Module):
@@ -179,7 +181,7 @@ def get_state_grid(env, grid_size: int = 10):
         - grid: (N, 2) array of grid coordinates
         - state_grid: List of full state vectors for each grid point
     """
-    logging.info(f'Generating state grid for env type: {type(env)}')
+    logger.info(f'Generating state grid for env type: {type(env)}')
 
     if isinstance(env, PushT):
         dim = [0, 1]  # Agent X, Y

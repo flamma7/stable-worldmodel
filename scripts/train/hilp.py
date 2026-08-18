@@ -1,3 +1,4 @@
+import logging
 import os
 from collections import OrderedDict
 
@@ -10,7 +11,6 @@ from lightning.pytorch.callbacks import Callback
 from stable_worldmodel.data import column_normalizer as get_column_normalizer
 from stable_worldmodel.wm.utils import save_pretrained
 from lightning.pytorch.loggers import WandbLogger
-from loguru import logger as logging
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from transformers import AutoModel
@@ -24,6 +24,10 @@ import stable_worldmodel as swm
 # ============================================================================
 # Data Setup
 # ============================================================================
+
+logger = logging.getLogger(__name__)
+
+
 def get_data(cfg):
     """Setup dataset with image transforms and normalization."""
 
@@ -87,7 +91,7 @@ def get_data(cfg):
         lengths=[cfg.train_split, 1 - cfg.train_split],
         generator=rnd_gen,
     )
-    logging.info(f'Train: {len(train_set)}, Val: {len(val_set)}')
+    logger.info(f'Train: {len(train_set)}, Val: {len(val_set)}')
 
     train = DataLoader(
         train_set,
@@ -162,7 +166,7 @@ def get_hilp_value_model(cfg):
         }
         for name, tensor in nan_checks.items():
             if tensor is not None and torch.isnan(tensor).any():
-                logging.warning(
+                logger.warning(
                     f'NaN detected in {name}! '
                     f'count={torch.isnan(tensor).sum().item()}, '
                     f'shape={tensor.shape}'
@@ -235,17 +239,17 @@ def get_hilp_value_model(cfg):
         # NaN detection after value prediction
         value_pred = v_pred
         if torch.isnan(v_pred).any():
-            logging.warning(
+            logger.warning(
                 f'NaN in value_pred! count={torch.isnan(v_pred).sum().item()}'
             )
         if torch.isnan(q).any():
-            logging.warning(
+            logger.warning(
                 f'NaN in q target! count={torch.isnan(q).sum().item()}'
             )
 
         # NaN detection after loss computation
         if torch.isnan(value_loss):
-            logging.warning(
+            logger.warning(
                 f'NaN in value_loss! '
                 f'value_pred range: [{value_pred.min().item():.4f}, {value_pred.max().item():.4f}], '
                 f'value_target range: [{value_target.min().item():.4f}, {value_target.max().item():.4f}]'
@@ -421,7 +425,7 @@ def get_hilp_value_model(cfg):
         encoder = AutoModel.from_pretrained('facebook/dinov2-small')
         embedding_dim = encoder.config.hidden_size
         encoder_trainable = False
-        logging.info('Using pretrained frozen DINO encoder')
+        logger.info('Using pretrained frozen DINO encoder')
     elif encoder_type == 'vit_tiny':
         # Load trainable ViT tiny from scratch
         encoder = spt.backbone.utils.vit_hf(
@@ -433,7 +437,7 @@ def get_hilp_value_model(cfg):
         )
         embedding_dim = encoder.config.hidden_size
         encoder_trainable = True
-        logging.info('Using trainable ViT tiny encoder (from scratch)')
+        logger.info('Using trainable ViT tiny encoder (from scratch)')
     else:
         raise ValueError(f'Unknown encoder_type: {encoder_type}')
 
@@ -445,7 +449,7 @@ def get_hilp_value_model(cfg):
     if cfg.dinowm.get('use_proprio_encoder', True):
         embedding_dim += cfg.dinowm.proprio_embed_dim  # Total embedding size
 
-    logging.info(f'Patches: {num_patches}, Embedding dim: {embedding_dim}')
+    logger.info(f'Patches: {num_patches}, Embedding dim: {embedding_dim}')
 
     # Build causal predictor (transformer that predicts next actions)
     effective_act_dim = (
@@ -484,7 +488,7 @@ def get_hilp_value_model(cfg):
         )
         extra_encoders = torch.nn.ModuleDict(extra_encoders)
 
-    logging.info(
+    logger.info(
         f'Action dim: {effective_act_dim}, Proprio encoder: {extra_encoders is not None}'
     )
 
@@ -840,4 +844,8 @@ def run(cfg):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s | %(name)s | %(message)s',
+    )
     run()

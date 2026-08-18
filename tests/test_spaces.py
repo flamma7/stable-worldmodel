@@ -114,7 +114,7 @@ def test_discrete_space_constraint_function_warn_sample():
     constraint_fn = MagicMock(return_value=False)
     space = spaces.Discrete(5, init_value=2, constrain_fn=constraint_fn)
 
-    with patch('stable_worldmodel.spaces.logging.warning') as mock_warning:
+    with patch('stable_worldmodel.spaces.logger.warning') as mock_warning:
         with pytest.raises(RuntimeError):
             space.sample(max_tries=1, warn_after_s=0.0)
         mock_warning.assert_called()
@@ -163,7 +163,7 @@ def test_discrete_space_sample_without_setting_value_constraint():
 def test_discrete_space_check_warning_on_constraint_fail():
     """Test that check() logs warning when constraint fails."""
     space = spaces.Discrete(5, init_value=2, constrain_fn=lambda x: False)
-    with patch('stable_worldmodel.spaces.logging.warning') as mock_warning:
+    with patch('stable_worldmodel.spaces.logger.warning') as mock_warning:
         result = space.check()
         assert not result
         mock_warning.assert_called_once()
@@ -308,7 +308,7 @@ def test_multidiscrete_space_constraint_function_warn_sample():
         [3, 4, 5], init_value=np.array([1, 2, 3]), constrain_fn=constraint_fn
     )
 
-    with patch('stable_worldmodel.spaces.logging.warning') as mock_warning:
+    with patch('stable_worldmodel.spaces.logger.warning') as mock_warning:
         with pytest.raises(RuntimeError):
             space.sample(max_tries=1, warn_after_s=0.0)
         mock_warning.assert_called()
@@ -369,7 +369,7 @@ def test_multidiscrete_space_check_warning_on_constraint_fail():
     space = spaces.MultiDiscrete(
         [5, 5], init_value=np.array([2, 2]), constrain_fn=lambda x: False
     )
-    with patch('stable_worldmodel.spaces.logging.warning') as mock_warning:
+    with patch('stable_worldmodel.spaces.logger.warning') as mock_warning:
         result = space.check()
         assert not result
         mock_warning.assert_called_once()
@@ -553,7 +553,7 @@ def test_box_space_constraint_function_warn_sample():
         constrain_fn=constraint_fn,
     )
 
-    with patch('loguru.logger.warning') as mock_warning:
+    with patch('stable_worldmodel.spaces.logger.warning') as mock_warning:
         with pytest.raises(RuntimeError):
             space.sample(max_tries=5, warn_after_s=0.0)
         mock_warning.assert_called()
@@ -638,7 +638,7 @@ def test_box_space_check_warning_on_constraint_fail():
         init_value=init_val,
         constrain_fn=lambda x: False,
     )
-    with patch('stable_worldmodel.spaces.logging.warning') as mock_warning:
+    with patch('stable_worldmodel.spaces.logger.warning') as mock_warning:
         result = space.check()
         assert not result
         mock_warning.assert_called_once()
@@ -1122,7 +1122,7 @@ def test_dict_space_one_level_sampling_order_partial():
 
 def test_dict_space_one_level_sampling_order_partial_warning():
     """Test that warning is logged for partial sampling order."""
-    with patch('stable_worldmodel.spaces.logging.warning') as mock_warning:
+    with patch('stable_worldmodel.spaces.logger.warning') as mock_warning:
         space = spaces.Dict(
             {
                 'x': spaces.Discrete(5, init_value=2),
@@ -1242,7 +1242,7 @@ def test_dict_space_one_level_check_debug():
         }
     )
 
-    with patch('stable_worldmodel.spaces.logging.warning') as mock_warning:
+    with patch('stable_worldmodel.spaces.logger.warning') as mock_warning:
         result = space.check(debug=True)
         assert not result
         mock_warning.assert_called()
@@ -1299,7 +1299,7 @@ def test_dict_space_one_level_constraint_warn_sample():
         constrain_fn=constraint_fn,
     )
 
-    with patch('stable_worldmodel.spaces.logging.warning') as mock_warning:
+    with patch('stable_worldmodel.spaces.logger.warning') as mock_warning:
         with pytest.raises(RuntimeError):
             space.sample(max_tries=5, warn_after_s=0.0)
         mock_warning.assert_called()

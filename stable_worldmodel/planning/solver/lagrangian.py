@@ -1,5 +1,6 @@
 """Lagrangian solver for stable world model."""
 
+import logging
 import time
 from typing import Any
 
@@ -8,10 +9,11 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from gymnasium.spaces import Box
-from loguru import logger as logging
 
 from .utils import prepare_init_action
 from .solver import Constrainable, Costable
+
+logger = logging.getLogger(__name__)
 
 
 class LagrangianSolver(torch.nn.Module):
@@ -107,7 +109,7 @@ class LagrangianSolver(torch.nn.Module):
         self._configured = True
 
         if not isinstance(action_space, Box):
-            logging.warning(
+            logger.warning(
                 f'Action space is discrete, got {type(action_space)}. LagrangianSolver may not work as expected.'
             )
 
