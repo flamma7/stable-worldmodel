@@ -16,6 +16,11 @@ from sklearn import preprocessing
 from torchvision.transforms import v2 as transforms
 import stable_worldmodel as swm
 
+def episode_col(dataset):
+    names = set(dataset.column_names)
+    names |= set(getattr(dataset, '_schema_names', ()))
+    return 'episode_idx' if 'episode_idx' in names else 'ep_idx'
+
 
 def img_transform(cfg, dtype=torch.float32):
     transform = transforms.Compose(
@@ -30,9 +35,10 @@ def img_transform(cfg, dtype=torch.float32):
 
 
 def get_episodes_length(dataset, episodes):
-    col_name = (
-        'episode_idx' if 'episode_idx' in dataset.column_names else 'ep_idx'
-    )
+    col_name = episode_col(dataset)
+    # col_name = (
+    #     'episode_idx' if 'episode_idx' in dataset.column_names else 'ep_idx'
+    # )
 
     episode_idx = dataset.get_col_data(col_name)
     step_idx = dataset.get_col_data('step_idx')
@@ -72,9 +78,10 @@ def run(cfg: DictConfig):
 
     dataset = get_dataset(cfg, cfg.eval.dataset_name)
     stats_dataset = dataset  # get_dataset(cfg, cfg.dataset.stats)
-    col_name = (
-        'episode_idx' if 'episode_idx' in dataset.column_names else 'ep_idx'
-    )
+    col_name = episode_col(dataset)
+    # col_name = (
+    #     'episode_idx' if 'episode_idx' in dataset.column_names else 'ep_idx'
+    # )
     ep_indices, _ = np.unique(
         stats_dataset.get_col_data(col_name), return_index=True
     )
@@ -137,9 +144,10 @@ def run(cfg: DictConfig):
         ep_id: max_start_idx[i] for i, ep_id in enumerate(ep_indices)
     }
     # Map each dataset row’s episode_idx to its max_start_idx
-    col_name = (
-        'episode_idx' if 'episode_idx' in dataset.column_names else 'ep_idx'
-    )
+    col_name = episode_col(dataset)
+    # col_name = (
+    #     'episode_idx' if 'episode_idx' in dataset.column_names else 'ep_idx'
+    # )
     max_start_per_row = np.array(
         [max_start_idx_dict[ep_id] for ep_id in dataset.get_col_data(col_name)]
     )
@@ -151,16 +159,21 @@ def run(cfg: DictConfig):
 
     g = np.random.default_rng(cfg.seed)
     random_episode_indices = g.choice(
-        len(valid_indices) - 1, size=cfg.eval.num_eval, replace=False
+        len(valid_indices), size=cfg.eval.num_eval, replace=False
     )
+    # random_episode_indices = g.choice(
+    #     len(valid_indices) - 1, size=cfg.eval.num_eval, replace=False
+    # )
 
     # sort increasingly to avoid issues with HDF5Dataset indexing
     random_episode_indices = np.sort(valid_indices[random_episode_indices])
 
     print(random_episode_indices)
 
-    eval_episodes = dataset.get_row_data(random_episode_indices)[col_name]
-    eval_start_idx = dataset.get_row_data(random_episode_indices)['step_idx']
+    eval_episodes = dataset.get_col_data(col_name)[random_episode_indices]
+    eval_start_idx = dataset.get_col_data('step_idx')[random_episode_indices]
+    # eval_episodes = dataset.get_row_data(random_episode_indices)[col_name]
+    # eval_start_idx = dataset.get_row_data(random_episode_indices)['step_idx']
 
     if len(eval_episodes) < cfg.eval.num_eval:
         raise ValueError(
