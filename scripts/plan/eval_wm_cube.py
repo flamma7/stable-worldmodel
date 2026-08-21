@@ -1,5 +1,5 @@
 """
-python scripts/plan/eval_wm_cube.py policy=quentinll/lewm-cube eval.dataset_name=galilai-group/ogb_cube_single seed=42 eval.num_eval=50 -cn cube
+python scripts/plan/eval_wm_cube.py policy=quentinll/lewm-cube eval.name=ogb_cube_results eval.dataset_name=galilai-group/ogb_cube_single seed=42 eval.num_eval=50 -cn cube
 """
 
 """Script to evaluate a World Model using MPC on a dataset of episodes."""
@@ -318,7 +318,7 @@ def run(cfg: DictConfig):
     )
     records['success'] = successes
 
-    npz_path = results_path.with_suffix('.npz')
+    npz_path = Path(hydra.utils.get_original_cwd()) / f'{cfg.eval.name}.npz'
     np.savez(npz_path, records=records)
     print(f'[eval] per-scenario records saved to {npz_path.resolve()}')
 
