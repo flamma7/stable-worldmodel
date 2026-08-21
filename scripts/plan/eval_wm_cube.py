@@ -1,3 +1,7 @@
+"""
+python scripts/plan/eval_wm_cube.py policy=quentinll/lewm-cube eval.dataset_name=galilai-group/ogb_cube_single seed=42 eval.num_eval=50 -cn cube
+"""
+
 """Script to evaluate a World Model using MPC on a dataset of episodes."""
 
 import os
