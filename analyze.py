@@ -1,9 +1,8 @@
-import os
+import argparse
 from pathlib import Path
 
 import numpy as np
 
-NPZ_OFFSET = Path('checkpoints/quentinll/ogb_cube_results.npz')
 DISTANCE_EDGES = (0.04, 0.13, 0.2)
 DISTANCE_LABELS = ('0-0.04', '0.04-0.13', '0.13-0.2', '0.2+')
 
@@ -34,11 +33,11 @@ def print_success_chart(rows):
 
 
 def main():
-    home = os.environ.get('STABLEWM_HOME')
-    if not home:
-        raise EnvironmentError('STABLEWM_HOME is not set')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('npz', type=Path, help='path to eval records .npz')
+    args = parser.parse_args()
 
-    path = Path(home) / NPZ_OFFSET
+    path = args.npz
     records = np.load(path)['records']
     distances = records['cube_displacement']
     success = np.asarray(records['success'], dtype=bool)

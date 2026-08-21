@@ -230,3 +230,5 @@ results/
 local_scripts/
 CLAUDE.md
 uv.lock
+
+*.npz
