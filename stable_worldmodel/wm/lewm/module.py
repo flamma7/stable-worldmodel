@@ -120,6 +120,136 @@ class Block(nn.Module):
         return x
 
 
+class CrossAttention(nn.Module):
+    """Scaled dot-product attention with Q from x and K, V from context."""
+
+    def __init__(self, dim, context_dim=None, heads=8, dim_head=64, dropout=0.0):
+        super().__init__()
+        context_dim = context_dim or dim
+        inner_dim = dim_head * heads
+        project_out = not (heads == 1 and dim_head == dim)
+        self.heads = heads
+        self.scale = dim_head**-0.5
+        self.dropout = dropout
+        self.norm = nn.LayerNorm(dim)
+        self.norm_context = nn.LayerNorm(context_dim)
+        self.to_q = nn.Linear(dim, inner_dim, bias=False)
+        self.to_kv = nn.Linear(context_dim, inner_dim * 2, bias=False)
+        self.to_out = (
+            nn.Sequential(nn.Linear(inner_dim, dim), nn.Dropout(dropout))
+            if project_out
+            else nn.Identity()
+        )
+
+    def forward(self, x, context):
+        """
+        x : (B, T, D) query tokens (Δx patches + CLS)
+        context : (B, N, D) key/value feature map H_t
+        """
+        x = self.norm(x)
+        context = self.norm_context(context)
+        drop = self.dropout if self.training else 0.0
+        q = rearrange(self.to_q(x), 'b t (h d) -> b h t d', h=self.heads)
+        k, v = (
+            rearrange(t, 'b n (h d) -> b h n d', h=self.heads)
+            for t in self.to_kv(context).chunk(2, dim=-1)
+        )
+        out = F.scaled_dot_product_attention(
+            q, k, v, dropout_p=drop, is_causal=False
+        )
+        out = rearrange(out, 'b h t d -> b t (h d)')
+        return self.to_out(out)
+
+
+class CrossAttnBlock(nn.Module):
+    """ViT block with self-attention over D then cross-attention to H_t.
+
+    D ← D + SelfAttn(D)
+    D ← D + CrossAttn(Q=D, K=H_t, V=H_t)
+    D ← D + FFN(D)
+    """
+
+    def __init__(self, dim, heads, dim_head, mlp_dim, dropout=0.0):
+        super().__init__()
+
+        self.attn = Attention(
+            dim, heads=heads, dim_head=dim_head, dropout=dropout
+        )
+        self.cross_attn = CrossAttention(
+            dim, heads=heads, dim_head=dim_head, dropout=dropout
+        )
+        self.mlp = FeedForward(dim, mlp_dim, dropout=dropout)
+        self.norm1 = nn.LayerNorm(dim, elementwise_affine=False, eps=1e-6)
+        self.norm2 = nn.LayerNorm(dim, elementwise_affine=False, eps=1e-6)
+        self.norm3 = nn.LayerNorm(dim, elementwise_affine=False, eps=1e-6)
+
+    def forward(self, x, context):
+        x = x + self.attn(self.norm1(x), causal=False)
+        x = x + self.cross_attn(self.norm2(x), context)
+        x = x + self.mlp(self.norm3(x))
+        return x
+
+
+class MotionEncoder(nn.Module):
+    """ViT-T that maps (Δx_t, H_t) to a latent residual δz_t.
+
+    Patch-embeds Δx_t, prepends a learned CLS token and position embeddings,
+    then runs transformer blocks that self-attend over Δx tokens and
+    cross-attend to the encoder feature map H_t. Returns the CLS token.
+    """
+
+    def __init__(
+        self,
+        img_size=224,
+        patch_size=14,
+        dim=192,
+        depth=12,
+        heads=3,
+        dim_head=64,
+        mlp_dim=768,
+        in_chans=3,
+        dropout=0.0,
+        emb_dropout=0.0,
+    ):
+        super().__init__()
+        assert img_size % patch_size == 0, (
+            'img_size must be divisible by patch_size'
+        )
+        num_patches = (img_size // patch_size) ** 2
+        self.num_patches = num_patches
+        self.dim = dim
+        self.patch_embed = nn.Conv2d(
+            in_chans, dim, kernel_size=patch_size, stride=patch_size
+        )
+        self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
+        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
+        self.dropout = nn.Dropout(emb_dropout)
+        self.layers = nn.ModuleList(
+            [
+                CrossAttnBlock(dim, heads, dim_head, mlp_dim, dropout)
+                for _ in range(depth)
+            ]
+        )
+        self.norm = nn.LayerNorm(dim)
+
+    def forward(self, delta_x, features):
+        """
+        delta_x: (B, C, H, W) pixel difference x_{t+1} - x_t
+        features: (B, N, D) encoder feature map H_t (CLS + patches)
+        returns: (B, D) CLS token δz_t
+        """
+        x = self.patch_embed(delta_x.to(self.patch_embed.weight.dtype))
+        x = rearrange(x, 'b d h w -> b (h w) d')
+        cls = self.cls_token.expand(x.size(0), -1, -1)
+        x = torch.cat((cls, x), dim=1)
+        x = x + self.pos_embedding[:, : x.size(1)]
+        x = self.dropout(x)
+        for block in self.layers:
+            x = block(x, features)
+        x = self.norm(x)
+        return x[:, 0]
+
+
 class Transformer(nn.Module):
     """Standard Transformer with support for AdaLN-zero blocks"""
 

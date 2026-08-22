@@ -12,6 +12,7 @@ class LeWM(nn.Module):
         action_encoder,
         projector=None,
         pred_proj=None,
+        motion_encoder=None,
         **kwargs,
     ):
         super().__init__()
@@ -21,6 +22,7 @@ class LeWM(nn.Module):
         self.action_encoder = action_encoder
         self.projector = projector or nn.Identity()
         self.pred_proj = pred_proj or nn.Identity()
+        self.motion_encoder = motion_encoder
 
     def encode(self, info):
         """Encode observations and actions into embeddings.
@@ -32,9 +34,12 @@ class LeWM(nn.Module):
             pixels, 'b t ... -> (b t) ...'
         )  # flatten for encoding
         output = self.encoder(pixels, interpolate_pos_encoding=True)
-        pixels_emb = output.last_hidden_state[:, 0]  # cls token
+        hidden = output.last_hidden_state  # (B*T, N, D) CLS + patches
+        pixels_emb = hidden[:, 0]  # cls token
         emb = self.projector(pixels_emb)
+
         info['emb'] = rearrange(emb, '(b t) d -> b t d', b=b)
+        info['feat'] = rearrange(hidden, '(b t) n d -> b t n d', b=b)
 
         if 'action' in info:
             info['act_emb'] = self.action_encoder(info['action'])
@@ -50,6 +55,27 @@ class LeWM(nn.Module):
         preds = self.pred_proj(rearrange(preds, 'b t d -> (b t) d'))
         preds = rearrange(preds, '(b t) d -> b t d', b=emb.size(0))
         return preds
+
+    def predict_delta(self, delta_x, features):
+        """Predict latent residual δz_t = m(Δx_t, H_t).
+
+        delta_x: (B, T, C, H, W) or (B, C, H, W)
+        features: (B, T, N, D) or (B, N, D)
+        returns: (B, T, D) or (B, D)
+        """
+        assert self.motion_encoder is not None, 'motion_encoder is not configured'
+        squeezed = delta_x.ndim == 4
+        if squeezed:
+            delta_x = delta_x.unsqueeze(1)
+            features = features.unsqueeze(1)
+        b = delta_x.size(0)
+        delta_x = rearrange(delta_x, 'b t ... -> (b t) ...')
+        features = rearrange(features, 'b t n d -> (b t) n d')
+        delta_z = self.motion_encoder(delta_x, features)
+        delta_z = rearrange(delta_z, '(b t) d -> b t d', b=b)
+        if squeezed:
+            delta_z = delta_z.squeeze(1)
+        return delta_z
 
     ####################
     ## Inference only ##
