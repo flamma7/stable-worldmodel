@@ -1,5 +1,5 @@
 dataset:
-  name: ogbench/cube_single_expert.h5
+  name: galilai-group/ogb_cube_single
   num_steps: ${eval:'${wm.num_preds} + ${wm.history_size}'}
   frameskip: 5
   keys_to_load:
@@ -9,5 +9,5 @@ dataset:
   keys_to_cache:
     - action
     - observation
-  keys_to_merge:
-    proprio: proprio
+  # keys_to_merge:
+  #   proprio: proprio

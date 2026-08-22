@@ -19,4 +19,4 @@ model:
 
 loss:
   tdv:
-    weight: 1.0
+    weight: 0.1

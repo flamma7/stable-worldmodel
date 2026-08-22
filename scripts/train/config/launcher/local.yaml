@@ -10,9 +10,16 @@ cache_dir: null # Use stable-worldmodel default cache
 wandb:
   enabled: false
   config:
-    entity: stable-wm
-    project: stable-wm
+    entity: flamma7-myself
+    project: lewm-tdv
     name: ${output_model_name}
     id: ${subdir}
     resume: allow
     log_model: False
+
+# Uploads weights + config.json to an existing HF model repo.
+# Auth: HF_TOKEN env var, or `huggingface-cli login`.
+hf:
+  enabled: false
+  repo_id: flamma77/lewm-base
+  path_prefix: tdv/${output_model_name}

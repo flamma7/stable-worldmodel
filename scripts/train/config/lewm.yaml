@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - launcher: local
-  - data: pusht
+  - data: ogb
 
 output_model_name: lewm
 subdir: ${hydra:job.id}
@@ -19,14 +19,15 @@ projector_loss_weight: 1e-3
 dump_object: True
 
 trainer:
-  max_epochs: 100
+  max_epochs: 10
   devices: auto
   accelerator: gpu
-  precision: bf16
+  precision: 16-mixed
   gradient_clip_val: 1.0
+  accumulate_grad_batches: 8
 
 loader:
-  batch_size: 128
+  batch_size: 16
   num_workers: ${num_workers}
   drop_last: True
   persistent_workers: True
