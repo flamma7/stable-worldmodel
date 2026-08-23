@@ -356,10 +356,13 @@ def run(cfg):
         epoch_interval=1,
         hf_cfg=hf_cfg,
     )
+    callbacks = [save_ckpt_callback]
+    if cfg.get('log_throughput', True):
+        callbacks.append(WallClockThroughput())
 
     trainer = pl.Trainer(
         **cfg.trainer,
-        callbacks=[save_ckpt_callback, WallClockThroughput()],
+        callbacks=callbacks,
         num_sanity_val_steps=1,
         logger=logger,
         enable_checkpointing=True,
