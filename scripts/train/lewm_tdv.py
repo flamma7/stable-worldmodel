@@ -1,4 +1,5 @@
 import os
+import time
 from pathlib import Path
 
 import hydra
@@ -24,6 +25,69 @@ def get_img_preprocessor(source: str, target: str, img_size: int = 224):
     )
     resize = dt.transforms.Resize(img_size, source=source, target=target)
     return dt.transforms.Compose(to_image, resize)
+
+
+class WallClockThroughput(Callback):
+    """Wall-clock samples/sec via time.perf_counter, no CUDA sync."""
+
+    def __init__(self):
+        super().__init__()
+        self._t0 = None
+        self._n_samples = 0
+        self._n_batches = 0
+
+    def on_train_start(self, trainer, pl_module):
+        self._reset()
+
+    def on_train_epoch_start(self, trainer, pl_module):
+        self._reset()
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        self._n_samples += self._global_batch_size(trainer, batch)
+        self._n_batches += 1
+
+        log_every = trainer.log_every_n_steps or 1
+        if (batch_idx + 1) % log_every != 0:
+            return
+
+        now = time.perf_counter()
+        dt = now - self._t0
+        if dt > 0 and self._n_batches > 0:
+            log_kw = dict(on_step=True, on_epoch=False, rank_zero_only=True)
+            pl_module.log(
+                'trainer/samples_per_sec', self._n_samples / dt, **log_kw
+            )
+            pl_module.log(
+                'trainer/batches_per_sec', self._n_batches / dt, **log_kw
+            )
+            pl_module.log(
+                'trainer/batch_time_sec', dt / self._n_batches, **log_kw
+            )
+        self._t0 = now
+        self._n_samples = 0
+        self._n_batches = 0
+
+    def _reset(self):
+        self._t0 = time.perf_counter()
+        self._n_samples = 0
+        self._n_batches = 0
+
+    @staticmethod
+    def _global_batch_size(trainer, batch):
+        if isinstance(batch, dict):
+            for key in ('pixels', 'action'):
+                if key in batch and torch.is_tensor(batch[key]):
+                    local = batch[key].shape[0]
+                    break
+            else:
+                local = next(
+                    v.shape[0] for v in batch.values() if torch.is_tensor(v)
+                )
+        elif torch.is_tensor(batch):
+            local = batch.shape[0]
+        else:
+            local = len(batch)
+        return local * trainer.world_size
 
 
 class SaveCkptCallback(Callback):
@@ -265,7 +329,7 @@ def run(cfg):
 
     trainer = pl.Trainer(
         **cfg.trainer,
-        callbacks=[save_ckpt_callback],
+        callbacks=[save_ckpt_callback, WallClockThroughput()],
         num_sanity_val_steps=1,
         logger=logger,
         enable_checkpointing=True,
