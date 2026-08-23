@@ -38,6 +38,7 @@ optimizer:
   type: AdamW
   lr: 5e-5
   weight_decay: 1e-3
+  fused: false
 
 wm:
   history_size: 3
