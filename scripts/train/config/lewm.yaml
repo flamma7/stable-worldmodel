@@ -26,7 +26,7 @@ trainer:
   gradient_clip_val: 1.0
 
 loader:
-  batch_size: 256
+  batch_size: 128
   num_workers: ${num_workers}
   drop_last: True
   persistent_workers: True
@@ -36,7 +36,7 @@ loader:
 
 optimizer:
   type: AdamW
-  lr: 7.071e-5
+  lr: 5e-5
   weight_decay: 1e-3
 
 wm:
