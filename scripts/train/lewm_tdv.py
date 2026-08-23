@@ -296,15 +296,7 @@ def run(cfg):
         **cfg.loader,
         generator=rnd_gen,
     )
-    val_cfg = {**cfg.loader}
-    val_cfg["shuffle"] = False
-    val_cfg["drop_last"] = False
-    val_cfg["num_workers"] = 2
-    val_cfg["persistent_workers"] = True
-    val_cfg["prefetch_factor"] = 1
-    val_cfg['shuffle'] = False
-    val_cfg['drop_last'] = False
-    val = torch.utils.data.DataLoader(val_set, **val_cfg)
+    val = torch.utils.data.DataLoader(val_set, **cfg.val_loader)
 
     ##############################
     ##       model / optim      ##
