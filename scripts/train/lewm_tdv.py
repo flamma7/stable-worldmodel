@@ -247,6 +247,9 @@ def lejepa_forward(self, batch, stage, cfg):
 
 @hydra.main(version_base=None, config_path='./config', config_name='lewm_tdv')
 def run(cfg):
+    if cfg.get('make_it_fast', False):
+        spt.make_it_fast()
+
     #########################
     ##       dataset       ##
     #########################
