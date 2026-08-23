@@ -27,6 +27,35 @@ def get_img_preprocessor(source: str, target: str, img_size: int = 224):
     return dt.transforms.Compose(to_image, resize)
 
 
+_COMPILE_ATTRS = ('encoder', 'predictor', 'motion_encoder')
+
+
+def compile_lewm(model):
+    """Compile the ViT-sized submodules. Leaves SIGReg and small MLPs eager."""
+    os.environ.setdefault('TORCHINDUCTOR_FX_GRAPH_CACHE', '1')
+    for name in _COMPILE_ATTRS:
+        mod = getattr(model, name, None)
+        if mod is None:
+            continue
+        setattr(model, name, torch.compile(mod))
+    return model
+
+
+def _swap_compiled_children(model, restore=None):
+    """Temporarily unwrap OptimizedModule children for a loadable state_dict."""
+    if restore is not None:
+        for name, compiled in restore:
+            setattr(model, name, compiled)
+        return None
+    swaps = []
+    for name, child in list(model.named_children()):
+        orig = getattr(child, '_orig_mod', None)
+        if orig is not None:
+            setattr(model, name, orig)
+            swaps.append((name, child))
+    return swaps
+
+
 class WallClockThroughput(Callback):
     """Wall-clock samples/sec via time.perf_counter, no CUDA sync."""
 
@@ -158,13 +187,17 @@ class SaveCkptCallback(Callback):
 
     def _save(self, model, epoch):
         filename = f'weights_epoch_{epoch}.pt'
-        save_pretrained(
-            model,
-            run_name=self.run_name,
-            config=self.cfg,
-            filename=filename,
-        )
-        self._upload_to_hf(filename)
+        swaps = _swap_compiled_children(model)
+        try:
+            save_pretrained(
+                model,
+                run_name=self.run_name,
+                config=self.cfg,
+                filename=filename,
+            )
+            self._upload_to_hf(filename)
+        finally:
+            _swap_compiled_children(model, restore=swaps)
 
 
 def lejepa_forward(self, batch, stage, cfg):
@@ -275,6 +308,8 @@ def run(cfg):
     ##############################
 
     world_model = hydra.utils.instantiate(cfg.model)
+    if cfg.get('compile', True):
+        world_model = compile_lewm(world_model)
 
     total_steps = cfg.trainer.max_epochs * len(train)
     optimizers = {

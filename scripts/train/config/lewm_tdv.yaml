@@ -3,6 +3,7 @@ defaults:
   - _self_
 
 output_model_name: lewm_tdv
+compile: true
 
 model:
   motion_encoder:
