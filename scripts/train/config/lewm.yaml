@@ -21,6 +21,7 @@ dump_object: True
 trainer:
   max_epochs: 10
   devices: auto
+  strategy: ddp
   accelerator: gpu
   precision: bf16
   gradient_clip_val: 1.0
