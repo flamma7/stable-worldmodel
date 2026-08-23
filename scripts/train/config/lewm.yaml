@@ -13,10 +13,12 @@ img_size: 224
 patch_size: 14
 encoder_scale: tiny
 embed_dim: 192
+
+# Leftover from original code
 encoder_resnet9: False
 train_value_function: False
 projector_loss_weight: 1e-3
-dump_object: True
+dump_object: False
 
 trainer:
   max_epochs: 10
@@ -24,6 +26,7 @@ trainer:
   accelerator: gpu
   precision: bf16-mixed
   gradient_clip_val: 1.0
+  check_val_every_n_epoch: 2
 
 loader:
   batch_size: 128
@@ -47,7 +50,7 @@ optimizer:
   type: AdamW
   lr: 5e-5
   weight_decay: 1e-3
-  fused: false
+  fused: false # must be false for gradient clipping
 
 wm:
   history_size: 3
