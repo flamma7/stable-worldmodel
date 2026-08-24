@@ -30,6 +30,9 @@ def get_img_preprocessor(source: str, target: str, img_size: int = 224):
 
 _COMPILE_ATTRS = ('encoder', 'predictor', 'motion_encoder')
 LATEST_CKPT = 'latest.ckpt'
+CONFIG_YAML = 'config.yaml'
+# Launch-only keys: never overwritten by a restored training config.
+_RESUME_KEEP = ('load_checkpoint_hf', 'hf')
 
 
 def compile_lewm(model):
@@ -57,21 +60,80 @@ def _hf_path_prefix(hf_cfg, run_name):
     return f'{prefix}/' if prefix else ''
 
 
-def download_hf_latest_ckpt(hf_cfg, run_name):
-    """Download ``{repo_id}/{path_prefix}/{output_model_name}/latest.ckpt``."""
+def download_hf_file(hf_cfg, run_name, filename):
+    """Download ``{repo_id}/{path_prefix}/{output_model_name}/{filename}``."""
     from huggingface_hub import hf_hub_download
 
     repo_id = hf_cfg['repo_id']
-    filename = f'{_hf_path_prefix(hf_cfg, run_name)}{LATEST_CKPT}'
+    repo_file = f'{_hf_path_prefix(hf_cfg, run_name)}{filename}'
     token = os.environ.get('HF_TOKEN') or hf_cfg.get('token')
     path = hf_hub_download(
         repo_id=repo_id,
-        filename=filename,
+        filename=repo_file,
         repo_type='model',
         token=token,
     )
-    print(f'Resuming from HF {repo_id}/{filename} -> {path}')
+    print(f'Downloaded HF {repo_id}/{repo_file} -> {path}')
     return path
+
+
+def _cfg_from_checkpoint(ckpt_path):
+    try:
+        blob = torch.load(str(ckpt_path), map_location='cpu', weights_only=False)
+    except TypeError:
+        blob = torch.load(str(ckpt_path), map_location='cpu')
+    raw = blob.get('lewm_full_cfg')
+    if raw is None:
+        return None, blob
+    return OmegaConf.create(raw), blob
+
+
+def download_hf_resume_bundle(hf_cfg, run_name):
+    """Fetch ``latest.ckpt`` and the matching training ``config.yaml``."""
+    ckpt_path = str(Path(download_hf_file(hf_cfg, run_name, LATEST_CKPT)).resolve())
+    saved_cfg = None
+    try:
+        yaml_path = download_hf_file(hf_cfg, run_name, CONFIG_YAML)
+        saved_cfg = OmegaConf.load(yaml_path)
+        print(f'Restored training config from HF {CONFIG_YAML}')
+    except Exception as exc:
+        print(f'No HF {CONFIG_YAML} ({exc}); trying checkpoint embedding')
+        saved_cfg, blob = _cfg_from_checkpoint(ckpt_path)
+        if saved_cfg is not None:
+            print('Restored training config from checkpoint lewm_full_cfg')
+        else:
+            resume = (blob or {}).get('lewm_resume') or {}
+            print(
+                'WARNING: no saved config.yaml; using current hydra cfg. '
+                f'Checkpoint meta: {resume}'
+            )
+    return ckpt_path, saved_cfg
+
+
+def merge_saved_train_cfg(cfg, saved_cfg):
+    """Replace training cfg with the saved snapshot; keep resume/HF launch keys."""
+    keep = {key: OmegaConf.select(cfg, key) for key in _RESUME_KEEP}
+    launch_max_epochs = cfg.trainer.max_epochs
+    launch_wandb_enabled = OmegaConf.select(cfg, 'wandb.enabled')
+    merged = OmegaConf.merge(cfg, saved_cfg)
+    with open_dict(merged):
+        for key, value in keep.items():
+            if value is not None:
+                merged[key] = value
+        # Allow raising max_epochs on the resume job; never shrink it.
+        if launch_max_epochs is not None:
+            merged.trainer.max_epochs = max(
+                int(launch_max_epochs), int(merged.trainer.max_epochs)
+            )
+        if launch_wandb_enabled is not None and merged.get('wandb') is not None:
+            merged.wandb.enabled = launch_wandb_enabled
+        merged.load_checkpoint_hf = True
+    print(
+        'Merged saved training config '
+        f'(max_epochs={merged.trainer.max_epochs}, '
+        f'lr={merged.optimizer.lr}, seed={merged.seed})'
+    )
+    return merged
 
 
 def _swap_compiled_children(model, restore=None):
@@ -121,6 +183,22 @@ def _install_compile_ckpt_hook(pl_module):
     previous = getattr(pl_module, 'on_load_checkpoint', None)
 
     def on_load_checkpoint(checkpoint):
+        resume = checkpoint.get('lewm_resume') or {}
+        loops = checkpoint.get('loops') or {}
+        fit_progress = (
+            (loops.get('fit_loop') or {}).get('epoch_progress')
+            if isinstance(loops.get('fit_loop'), dict)
+            else None
+        )
+        print(
+            'Lightning checkpoint restore: '
+            f"epoch={checkpoint.get('epoch')} "
+            f"global_step={checkpoint.get('global_step')} "
+            f"has_loops={'loops' in checkpoint} "
+            f"has_optim={'optimizer_states' in checkpoint} "
+            f"has_schedulers={'lr_schedulers' in checkpoint} "
+            f"lewm_resume={resume} fit_loop.epoch_progress={fit_progress}"
+        )
         sd = checkpoint.get('state_dict')
         if isinstance(sd, dict):
             checkpoint['state_dict'] = _align_state_dict_to_module(
@@ -205,19 +283,55 @@ class _SigregDiagClose(Callback):
 class SaveCkptCallback(Callback):
     """Save epoch weights plus a Lightning ``latest.ckpt`` for resume."""
 
-    def __init__(self, run_name, cfg, epoch_interval: int = 1, hf_cfg=None):
+    def __init__(
+        self,
+        run_name,
+        cfg,
+        epoch_interval: int = 1,
+        hf_cfg=None,
+        full_cfg=None,
+    ):
         super().__init__()
         self.run_name = run_name
         self.cfg = cfg
+        self.full_cfg = full_cfg
         self.epoch_interval = epoch_interval
         self.hf_cfg = hf_cfg or {}
         self._hf_api = None
+        self._logged_resume = False
 
     @property
     def _ckpt_dir(self):
         return (
             swm.data.utils.get_cache_dir(sub_folder='checkpoints')
             / self.run_name
+        )
+
+    def on_save_checkpoint(self, trainer, pl_module, checkpoint):
+        checkpoint['lewm_resume'] = {
+            'epoch': int(trainer.current_epoch),
+            'global_step': int(trainer.global_step),
+            'max_epochs': int(trainer.max_epochs)
+            if trainer.max_epochs is not None
+            else None,
+        }
+        if self.full_cfg is not None:
+            checkpoint['lewm_full_cfg'] = OmegaConf.to_container(
+                self.full_cfg, resolve=True
+            )
+
+    def on_train_epoch_start(self, trainer, pl_module):
+        if self._logged_resume:
+            return
+        self._logged_resume = True
+        progress = trainer.fit_loop.epoch_progress.current
+        print(
+            'Trainer state at first epoch start: '
+            f'current_epoch={trainer.current_epoch} '
+            f'global_step={trainer.global_step} '
+            f'max_epochs={trainer.max_epochs} '
+            f'progress(ready={progress.ready} started={progress.started} '
+            f'processed={progress.processed} completed={progress.completed})'
         )
 
     def on_train_epoch_end(self, trainer, pl_module):
@@ -268,6 +382,18 @@ class SaveCkptCallback(Callback):
             )
         print(f'Uploaded {prefix}{weights_file} to {repo_id}')
 
+    def _save_full_config(self):
+        if self.full_cfg is None:
+            return None
+        path = self._ckpt_dir / CONFIG_YAML
+        OmegaConf.save(
+            OmegaConf.create(
+                OmegaConf.to_container(self.full_cfg, resolve=True)
+            ),
+            path,
+        )
+        return CONFIG_YAML
+
     def _save(self, pl_module, trainer, epoch):
         model = pl_module.model
         filename = f'weights_epoch_{epoch}.pt'
@@ -284,8 +410,11 @@ class SaveCkptCallback(Callback):
                     config=self.cfg,
                     filename=filename,
                 )
+                self._save_full_config()
                 self._upload_to_hf(filename)
                 self._upload_to_hf(LATEST_CKPT)
+                if (self._ckpt_dir / CONFIG_YAML).exists():
+                    self._upload_to_hf(CONFIG_YAML)
         finally:
             _swap_compiled_children(model, restore=swaps)
 
@@ -341,6 +470,25 @@ def lejepa_forward(self, batch, stage, cfg):
 
 @hydra.main(version_base=None, config_path='./config', config_name='lewm_tdv')
 def run(cfg):
+    hf_cfg = cfg.get('hf')
+    if hf_cfg is not None:
+        hf_cfg = OmegaConf.to_container(hf_cfg, resolve=True)
+
+    ckpt_path = None
+    if cfg.get('load_checkpoint_hf'):
+        if not hf_cfg or not hf_cfg.get('repo_id'):
+            raise ValueError(
+                'load_checkpoint_hf=true requires hf.repo_id '
+                '(see launcher config)'
+            )
+        ckpt_path, saved_cfg = download_hf_resume_bundle(
+            hf_cfg, cfg.output_model_name
+        )
+        if saved_cfg is not None:
+            cfg = merge_saved_train_cfg(cfg, saved_cfg)
+            if cfg.get('hf') is not None:
+                hf_cfg = OmegaConf.to_container(cfg.hf, resolve=True)
+
     if cfg.get('make_it_fast', False):
         spt.make_it_fast()
 
@@ -461,6 +609,7 @@ def run(cfg):
         cfg=cfg.model,
         epoch_interval=1,
         hf_cfg=hf_cfg,
+        full_cfg=cfg,
     )
     callbacks = [save_ckpt_callback]
     if cfg.get('log_throughput', True):
@@ -476,19 +625,7 @@ def run(cfg):
         enable_checkpointing=True,
     )
 
-    ckpt_path = None
-    if cfg.get('load_checkpoint_hf'):
-        if not hf_cfg or not hf_cfg.get('repo_id'):
-            raise ValueError(
-                'load_checkpoint_hf=true requires hf.repo_id '
-                '(see launcher config)'
-            )
-        ckpt_path = str(
-            Path(
-                download_hf_latest_ckpt(hf_cfg, cfg.output_model_name)
-            ).resolve()
-        )
-    else:
+    if ckpt_path is None:
         legacy = run_dir / f'{cfg.output_model_name}_weights.ckpt'
         if legacy.exists():
             ckpt_path = str(legacy.resolve())
@@ -498,8 +635,9 @@ def run(cfg):
         module=world_model,
         data=data_module,
         ckpt_path=ckpt_path,
+        seed=cfg.seed,
     )
-    # Full trainer resume (epoch / optim / schedulers), not weights-only init.
+    # Full trainer resume (epoch / optim / schedulers / RNG), not weights-only.
     if ckpt_path is not None:
         manager_kwargs['weights_only'] = False
 
