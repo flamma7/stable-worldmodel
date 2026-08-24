@@ -534,7 +534,7 @@ class SIGRegCollapseMonitor:
             self._history.append(
                 {
                     'step': int(step),
-                    'metric': f'latent/{name}',
+                    'metric': f'collapse/{name}',
                     'value': float(metrics[name]),
                     'target': spec['target'],
                     'lower_bound': spec['lower_bound'],
@@ -547,7 +547,7 @@ class SIGRegCollapseMonitor:
 
     def _log_scalars(self, module, metrics: dict[str, float]) -> None:
         payload = {
-            f'latent/{name}': float(metrics[name]) for name in METRIC_NAMES
+            f'collapse/{name}': float(metrics[name]) for name in METRIC_NAMES
         }
         module.log_dict(
             payload,
@@ -582,15 +582,15 @@ class SIGRegCollapseMonitor:
         )
         spec = _build_vega_lite_spec(self._history)
         payload = {
-            'latent/diagnostics': table,
-            'latent/collapse_line': wandb.plot.line(
+            'collapse/diagnostics': table,
+            'collapse/line': wandb.plot.line(
                 table,
                 x='step',
                 y='value',
                 stroke='metric',
-                title='SIGReg latent collapse',
+                title='SIGReg collapse',
             ),
-            'latent/collapse_vega': wandb.Html(_vega_html(spec)),
+            'collapse/vega': wandb.Html(_vega_html(spec)),
         }
         run.log(payload, step=step)
         self._last_table_step = step
