@@ -29,6 +29,7 @@ def get_img_preprocessor(source: str, target: str, img_size: int = 224):
 
 
 _COMPILE_ATTRS = ('encoder', 'predictor', 'motion_encoder')
+LATEST_CKPT = 'latest.ckpt'
 
 
 def compile_lewm(model):
@@ -40,6 +41,37 @@ def compile_lewm(model):
             continue
         setattr(model, name, torch.compile(mod))
     return model
+
+
+def _hf_path_prefix(hf_cfg, run_name):
+    """Repo-relative prefix, e.g. ``tdv/lewm_tdv/``.
+
+    ``path_prefix`` already interpolates ``output_model_name`` in the default
+    launcher config. If it does not, ``run_name`` is appended so the on-repo
+    path is ``{path_prefix}/{output_model_name}/``.
+    """
+    prefix = str((hf_cfg or {}).get('path_prefix') or '').strip('/')
+    name = run_name or ''
+    if name and not prefix.endswith(name):
+        prefix = f'{prefix}/{name}' if prefix else name
+    return f'{prefix}/' if prefix else ''
+
+
+def download_hf_latest_ckpt(hf_cfg, run_name):
+    """Download ``{repo_id}/{path_prefix}/{output_model_name}/latest.ckpt``."""
+    from huggingface_hub import hf_hub_download
+
+    repo_id = hf_cfg['repo_id']
+    filename = f'{_hf_path_prefix(hf_cfg, run_name)}{LATEST_CKPT}'
+    token = os.environ.get('HF_TOKEN') or hf_cfg.get('token')
+    path = hf_hub_download(
+        repo_id=repo_id,
+        filename=filename,
+        repo_type='model',
+        token=token,
+    )
+    print(f'Resuming from HF {repo_id}/{filename} -> {path}')
+    return path
 
 
 def _swap_compiled_children(model, restore=None):
@@ -128,7 +160,7 @@ class _SigregDiagClose(Callback):
 
 
 class SaveCkptCallback(Callback):
-    """Callback to save model checkpoint after each epoch using save_pretrained."""
+    """Save epoch weights plus a Lightning ``latest.ckpt`` for resume."""
 
     def __init__(self, run_name, cfg, epoch_interval: int = 1, hf_cfg=None):
         super().__init__()
@@ -137,17 +169,41 @@ class SaveCkptCallback(Callback):
         self.epoch_interval = epoch_interval
         self.hf_cfg = hf_cfg or {}
         self._hf_api = None
+        self._compile_swaps = None
+
+    @property
+    def _ckpt_dir(self):
+        return (
+            swm.data.utils.get_cache_dir(sub_folder='checkpoints')
+            / self.run_name
+        )
+
+    def on_load_checkpoint(self, trainer, pl_module, checkpoint):
+        # Checkpoints are saved with compiled wrappers unwrapped. Strip any
+        # leftover ``._orig_mod`` keys and unwrap before Lightning load.
+        sd = checkpoint.get('state_dict')
+        if sd:
+            checkpoint['state_dict'] = {
+                k.replace('._orig_mod', ''): v for k, v in sd.items()
+            }
+        self._compile_swaps = _swap_compiled_children(pl_module.model)
+
+    def on_fit_start(self, trainer, pl_module):
+        if self._compile_swaps:
+            _swap_compiled_children(
+                pl_module.model, restore=self._compile_swaps
+            )
+            self._compile_swaps = None
 
     def on_train_epoch_end(self, trainer, pl_module):
         super().on_train_epoch_end(trainer, pl_module)
 
-        if trainer.is_global_zero:
-            if (trainer.current_epoch + 1) % self.epoch_interval == 0:
-                self._save(pl_module.model, trainer.current_epoch + 1)
-
-            # save final epoch
-            if (trainer.current_epoch + 1) == trainer.max_epochs:
-                self._save(pl_module.model, trainer.current_epoch + 1)
+        epoch = trainer.current_epoch + 1
+        should_save = (
+            epoch % self.epoch_interval == 0 or epoch == trainer.max_epochs
+        )
+        if should_save:
+            self._save(pl_module, trainer, epoch)
 
     def _get_hf_api(self):
         if self._hf_api is not None:
@@ -168,22 +224,16 @@ class SaveCkptCallback(Callback):
             return
 
         repo_id = self.hf_cfg['repo_id']
-        ckpt_dir = (
-            swm.data.utils.get_cache_dir(sub_folder='checkpoints')
-            / self.run_name
-        )
-        prefix = self.hf_cfg.get('path_prefix') or self.run_name
-        if prefix and not prefix.endswith('/'):
-            prefix = f'{prefix}/'
+        prefix = _hf_path_prefix(self.hf_cfg, self.run_name)
 
         hf_api = self._get_hf_api()
         hf_api.upload_file(
-            path_or_fileobj=str(ckpt_dir / weights_file),
+            path_or_fileobj=str(self._ckpt_dir / weights_file),
             path_in_repo=f'{prefix}{weights_file}',
             repo_id=repo_id,
             repo_type='model',
         )
-        config_path = ckpt_dir / 'config.json'
+        config_path = self._ckpt_dir / 'config.json'
         if config_path.exists():
             hf_api.upload_file(
                 path_or_fileobj=str(config_path),
@@ -193,17 +243,24 @@ class SaveCkptCallback(Callback):
             )
         print(f'Uploaded {prefix}{weights_file} to {repo_id}')
 
-    def _save(self, model, epoch):
+    def _save(self, pl_module, trainer, epoch):
+        model = pl_module.model
         filename = f'weights_epoch_{epoch}.pt'
+        latest_path = self._ckpt_dir / LATEST_CKPT
+        # save_checkpoint must run on every rank (Lightning barrier).
         swaps = _swap_compiled_children(model)
         try:
-            save_pretrained(
-                model,
-                run_name=self.run_name,
-                config=self.cfg,
-                filename=filename,
-            )
-            self._upload_to_hf(filename)
+            self._ckpt_dir.mkdir(parents=True, exist_ok=True)
+            trainer.save_checkpoint(str(latest_path))
+            if trainer.is_global_zero:
+                save_pretrained(
+                    model,
+                    run_name=self.run_name,
+                    config=self.cfg,
+                    filename=filename,
+                )
+                self._upload_to_hf(filename)
+                self._upload_to_hf(LATEST_CKPT)
         finally:
             _swap_compiled_children(model, restore=swaps)
 
@@ -393,12 +450,24 @@ def run(cfg):
         enable_checkpointing=True,
     )
 
-    ckpt_path = run_dir / f'{cfg.output_model_name}_weights.ckpt'
+    ckpt_path = None
+    if cfg.get('load_checkpoint_hf'):
+        if not hf_cfg or not hf_cfg.get('repo_id'):
+            raise ValueError(
+                'load_checkpoint_hf=true requires hf.repo_id '
+                '(see launcher config)'
+            )
+        ckpt_path = download_hf_latest_ckpt(hf_cfg, cfg.output_model_name)
+    else:
+        legacy = run_dir / f'{cfg.output_model_name}_weights.ckpt'
+        if legacy.exists():
+            ckpt_path = str(legacy)
+
     manager = spt.Manager(
         trainer=trainer,
         module=world_model,
         data=data_module,
-        ckpt_path=ckpt_path if ckpt_path.exists() else None,
+        ckpt_path=ckpt_path,
     )
 
     manager()

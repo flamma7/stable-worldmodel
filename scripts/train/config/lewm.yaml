@@ -20,6 +20,8 @@ train_value_function: False
 projector_loss_weight: 1e-3
 dump_object: False
 log_throughput: False # logs samples/sec and other metrics
+# Resume trainer state from HF {repo_id}/{path_prefix}/{output_model_name}/latest.ckpt
+load_checkpoint_hf: false
 
 trainer:
   max_epochs: 10
