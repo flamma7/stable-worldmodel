@@ -193,100 +193,8 @@ class _CpuFifo:
         return self.data.clone()
 
 
-_SERIES_DOMAIN = ('value', 'target', 'lower_bound', 'upper_bound')
 _SERIES_COLORS = ('#1f77b4', '#d62728', '#7f7f7f', '#7f7f7f')
-# Vega-Lite strokeDash: solid, dotted, dashed, dashed.
-_SERIES_DASH = ([1, 0], [2, 2], [6, 4], [6, 4])
-
-
-def _build_vega_lite_spec(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    return {
-        '$schema': 'https://vega.github.io/schema/vega-lite/v5.json',
-        'title': 'SIGReg latent collapse diagnostics',
-        'data': {'values': rows},
-        'transform': [
-            {
-                'calculate': (
-                    'datum.value >= datum.lower_bound && '
-                    'datum.value <= datum.upper_bound'
-                ),
-                'as': 'in_range',
-            },
-            {
-                'fold': list(_SERIES_DOMAIN),
-                'as': ['series', 'y'],
-            },
-        ],
-        'facet': {
-            'row': {
-                'field': 'metric',
-                'type': 'nominal',
-                'title': None,
-                'header': {'labelFontWeight': 'bold'},
-            }
-        },
-        'spec': {
-            'width': 640,
-            'height': 140,
-            'layer': [
-                {
-                    'mark': {'type': 'line', 'strokeWidth': 1.5},
-                    'encoding': {
-                        'x': {
-                            'field': 'step',
-                            'type': 'quantitative',
-                            'title': 'step',
-                        },
-                        'y': {
-                            'field': 'y',
-                            'type': 'quantitative',
-                            'title': 'value',
-                        },
-                        'color': {
-                            'field': 'series',
-                            'type': 'nominal',
-                            'scale': {
-                                'domain': list(_SERIES_DOMAIN),
-                                'range': list(_SERIES_COLORS),
-                            },
-                            'legend': {'title': None},
-                        },
-                        'strokeDash': {
-                            'field': 'series',
-                            'type': 'nominal',
-                            'scale': {
-                                'domain': list(_SERIES_DOMAIN),
-                                'range': [list(d) for d in _SERIES_DASH],
-                            },
-                            'legend': None,
-                        },
-                    },
-                },
-                {
-                    'transform': [{'filter': "datum.series === 'value'"}],
-                    'mark': {'type': 'point', 'size': 50, 'filled': True},
-                    'encoding': {
-                        'x': {
-                            'field': 'step',
-                            'type': 'quantitative',
-                        },
-                        'y': {
-                            'field': 'y',
-                            'type': 'quantitative',
-                        },
-                        'color': {
-                            'condition': {
-                                'test': '!datum.in_range',
-                                'value': '#d62728',
-                            },
-                            'value': '#1f77b4',
-                        },
-                    },
-                },
-            ],
-        },
-        'resolve': {'scale': {'y': 'independent'}},
-    }
+_BOUND_KEYS = ('target', 'lower_bound', 'upper_bound')
 
 
 def _build_diagnostics_figure(rows: list[dict[str, Any]]):
@@ -355,21 +263,6 @@ def _build_diagnostics_figure(rows: list[dict[str, Any]]):
     axes[-1].set_xlabel('step')
     fig.suptitle('SIGReg latent collapse diagnostics')
     return fig
-
-
-def _vega_html(spec: dict[str, Any]) -> str:
-    payload = json.dumps(spec, separators=(',', ':'))
-    return (
-        '<!DOCTYPE html><html><head>'
-        '<script src="https://cdn.jsdelivr.net/npm/vega@5"></script>'
-        '<script src="https://cdn.jsdelivr.net/npm/vega-lite@5">'
-        '</script>'
-        '<script src="https://cdn.jsdelivr.net/npm/vega-embed@6">'
-        '</script></head><body>'
-        '<div id="vis"></div>'
-        f'<script>vegaEmbed("#vis", {payload});</script>'
-        '</body></html>'
-    )
 
 
 class SIGRegCollapseMonitor:
@@ -603,9 +496,12 @@ class SIGRegCollapseMonitor:
             self._history = self._history[overflow:]
 
     def _log_scalars(self, module, metrics: dict[str, float]) -> None:
-        payload = {
-            f'collapse/{name}': float(metrics[name]) for name in METRIC_NAMES
-        }
+        payload = {}
+        for name in METRIC_NAMES:
+            spec = self.bounds[name]
+            payload[f'collapse/{name}'] = float(metrics[name])
+            for key in _BOUND_KEYS:
+                payload[f'collapse/{name}/{key}'] = float(spec[key])
         module.log_dict(
             payload,
             on_step=True,
@@ -622,8 +518,8 @@ class SIGRegCollapseMonitor:
             and step - self._last_table_step < self.table_log_every
         ):
             return
-        run = _wandb_run(module)
-        if run is None:
+        logger = _pl_wandb_logger(module)
+        if logger is None or not hasattr(logger, 'log_metrics'):
             return
         try:
             import wandb
@@ -637,13 +533,7 @@ class SIGRegCollapseMonitor:
                 for row in self._history
             ],
         )
-        spec = _build_vega_lite_spec(self._history)
-        payload = {
-            'collapse/diagnostics': table,
-            'collapse/vega': wandb.Html(
-                _vega_html(spec), inject=False
-            ),
-        }
+        payload: dict[str, Any] = {'collapse/diagnostics': table}
         try:
             fig = _build_diagnostics_figure(self._history)
             payload['collapse/line'] = wandb.Image(fig)
@@ -655,18 +545,29 @@ class SIGRegCollapseMonitor:
                 stroke='metric',
                 title='SIGReg collapse',
             )
-        run.log(payload, step=step)
+        else:
+            try:
+                from matplotlib import pyplot as plt
+
+                plt.close(fig)
+            except Exception:
+                pass
+        # Lightning's WandbLogger plots against trainer/global_step and
+        # must not be given wandb's step= argument (that drops media).
+        logger.log_metrics(payload, step=int(step))
         self._last_table_step = step
 
 
-def _wandb_run(module):
-    logger = getattr(module, 'logger', None)
-    if logger is None:
-        return None
-    experiment = getattr(logger, 'experiment', None)
-    if experiment is None or not hasattr(experiment, 'log'):
-        return None
-    return experiment
+def _pl_wandb_logger(module):
+    loggers = list(getattr(module, 'loggers', None) or ())
+    if not loggers:
+        logger = getattr(module, 'logger', None)
+        if logger is not None:
+            loggers = [logger]
+    for logger in loggers:
+        if type(logger).__name__ == 'WandbLogger':
+            return logger
+    return None
 
 
 if __name__ == '__main__':
