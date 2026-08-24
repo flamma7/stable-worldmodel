@@ -105,3 +105,34 @@ loss:
     kwargs:
       knots: 17
       num_proj: 1024
+    # Collapse diagnostics on post-projection embeddings passed to SIGReg.
+    # Buffers stay on CPU and never enter the training loss / graph.
+    diagnostics:
+      enabled: true
+      buffer_size: 8192
+      sample_every: 16
+      sample_size: 48
+      log_every: 400
+      table_log_every: 2000
+      min_samples: 2048  # N(0,I) rank frac ~0.95; 384 would read as collapse
+      eps: 1.0e-12
+      background: true
+      # Calibrated on N(0, I), N=8192, D=192, 256 trials, same FIFO
+      # sampler (B=128, sample=48). Simulation 1–99%:
+      #   variance_mean       0.9975–1.0022  (mean 0.9998)
+      #   effective_rank_frac 0.9880–0.9885  (mean 0.9883; finite-N Wishart)
+      #   mean_rms            0.0097–0.0123  (mean 0.0110)
+      # Collapse bands stay wider than sampling noise: var/rank use the
+      # 0.8–1.2 and 0.9–1.0 heuristics. mean_rms upper is 4× sim q99.
+      variance_mean:
+        target: 1.0
+        lower_bound: 0.8
+        upper_bound: 1.2
+      effective_rank_frac:
+        target: 1.0
+        lower_bound: 0.9
+        upper_bound: 1.0
+      mean_rms:
+        target: 0.0
+        lower_bound: 0.0
+        upper_bound: 0.05

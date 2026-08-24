@@ -16,6 +16,7 @@ from stable_worldmodel.data import column_normalizer as get_column_normalizer
 from stable_worldmodel.wm.loss import SIGReg
 from lightning.pytorch.callbacks import Callback
 from stable_worldmodel.wm.utils import save_pretrained
+from stable_worldmodel.wm.sigreg_diagnostics import SIGRegCollapseMonitor
 
 
 def get_img_preprocessor(source: str, target: str, img_size: int = 224):
@@ -117,6 +118,13 @@ class WallClockThroughput(Callback):
         else:
             local = len(batch)
         return local * trainer.world_size
+
+
+class _SigregDiagClose(Callback):
+    def on_train_end(self, trainer, pl_module):
+        diag = getattr(pl_module, 'sigreg_diagnostics', None)
+        if diag is not None:
+            diag.close(pl_module)
 
 
 class SaveCkptCallback(Callback):
@@ -242,6 +250,10 @@ def lejepa_forward(self, batch, stage, cfg):
         f'{stage}/{k}': v.detach() for k, v in output.items() if 'loss' in k
     }
     self.log_dict(losses_dict, on_step=True, sync_dist=False) # changed to false for faster ddp training
+
+    diag = getattr(self, 'sigreg_diagnostics', None)
+    if diag is not None and stage == 'fit':
+        diag.update(emb, self)
     return output
 
 
@@ -328,6 +340,12 @@ def run(cfg):
         optim=optimizers,
     )
 
+    diag_cfg = cfg.loss.sigreg.get('diagnostics')
+    if diag_cfg is not None:
+        diag_cfg = OmegaConf.to_container(diag_cfg, resolve=True)
+        if diag_cfg.get('enabled', True):
+            world_model.sigreg_diagnostics = SIGRegCollapseMonitor(diag_cfg)
+
     ##########################
     ##       training       ##
     ##########################
@@ -364,6 +382,8 @@ def run(cfg):
     callbacks = [save_ckpt_callback]
     if cfg.get('log_throughput', True):
         callbacks.append(WallClockThroughput())
+    if getattr(world_model, 'sigreg_diagnostics', None) is not None:
+        callbacks.append(_SigregDiagClose())
 
     trainer = pl.Trainer(
         **cfg.trainer,
