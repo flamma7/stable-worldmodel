@@ -194,7 +194,6 @@ class _CpuFifo:
 
 
 _SERIES_COLORS = ('#1f77b4', '#d62728', '#7f7f7f', '#7f7f7f')
-_BOUND_KEYS = ('target', 'lower_bound', 'upper_bound')
 
 
 def _build_diagnostics_figure(rows: list[dict[str, Any]]):
@@ -496,12 +495,9 @@ class SIGRegCollapseMonitor:
             self._history = self._history[overflow:]
 
     def _log_scalars(self, module, metrics: dict[str, float]) -> None:
-        payload = {}
-        for name in METRIC_NAMES:
-            spec = self.bounds[name]
-            payload[f'collapse/{name}'] = float(metrics[name])
-            for key in _BOUND_KEYS:
-                payload[f'collapse/{name}/{key}'] = float(spec[key])
+        payload = {
+            f'collapse/{name}': float(metrics[name]) for name in METRIC_NAMES
+        }
         module.log_dict(
             payload,
             on_step=True,
