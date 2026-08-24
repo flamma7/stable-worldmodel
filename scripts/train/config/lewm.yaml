@@ -112,13 +112,13 @@ loss:
     diagnostics:
       enabled: true
       buffer_size: 8192
-      # sample_every: 16
-      sample_every: 2
+      sample_every: 16
+      # sample_every: 2
       sample_size: 48
-      # log_every: 400
-      log_every: 10
-      # table_log_every: 2000
-      table_log_every: 20
+      log_every: 400
+      # log_every: 10
+      table_log_every: 2000
+      # table_log_every: 20
       min_samples: 2048  # N(0,I) rank frac ~0.95; 384 would read as collapse
       eps: 1.0e-12
       background: true

@@ -5,9 +5,9 @@ dataset:
   keys_to_load:
     - pixels
     - action
-    - observation
+    # - observation
   keys_to_cache:
     - action
-    - observation
+    # - observation
   # keys_to_merge:
   #   proprio: proprio

@@ -4,7 +4,7 @@ defaults:
 
 output_model_name: lewm_tdv
 compile: true
-make_it_fast: true
+make_it_fast: false
 log_throughput: false # logs samples/sec and other metrics
 
 model:
