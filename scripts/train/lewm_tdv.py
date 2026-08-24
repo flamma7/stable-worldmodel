@@ -436,6 +436,7 @@ def lejepa_forward(self, batch, stage, cfg):
     act_emb = output['act_emb']
     feat = output['feat']  # (B, T, N, D) H_t = [CLS + patches]
 
+    # Extract the context embeddings and actions
     ctx_emb = emb[:, :ctx_len]
     ctx_act = act_emb[:, :ctx_len]
 
