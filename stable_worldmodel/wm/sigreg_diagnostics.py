@@ -193,6 +193,12 @@ class _CpuFifo:
         return self.data.clone()
 
 
+_SERIES_DOMAIN = ('value', 'target', 'lower_bound', 'upper_bound')
+_SERIES_COLORS = ('#1f77b4', '#d62728', '#7f7f7f', '#7f7f7f')
+# Vega-Lite strokeDash: solid, dotted, dashed, dashed.
+_SERIES_DASH = ([1, 0], [2, 2], [6, 4], [6, 4])
+
+
 def _build_vega_lite_spec(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         '$schema': 'https://vega.github.io/schema/vega-lite/v5.json',
@@ -205,7 +211,11 @@ def _build_vega_lite_spec(rows: list[dict[str, Any]]) -> dict[str, Any]:
                     'datum.value <= datum.upper_bound'
                 ),
                 'as': 'in_range',
-            }
+            },
+            {
+                'fold': list(_SERIES_DOMAIN),
+                'as': ['series', 'y'],
+            },
         ],
         'facet': {
             'row': {
@@ -220,11 +230,7 @@ def _build_vega_lite_spec(rows: list[dict[str, Any]]) -> dict[str, Any]:
             'height': 140,
             'layer': [
                 {
-                    'mark': {
-                        'type': 'area',
-                        'opacity': 0.18,
-                        'color': '#4c78a8',
-                    },
+                    'mark': {'type': 'line', 'strokeWidth': 1.5},
                     'encoding': {
                         'x': {
                             'field': 'step',
@@ -232,49 +238,32 @@ def _build_vega_lite_spec(rows: list[dict[str, Any]]) -> dict[str, Any]:
                             'title': 'step',
                         },
                         'y': {
-                            'field': 'lower_bound',
+                            'field': 'y',
                             'type': 'quantitative',
                             'title': 'value',
                         },
-                        'y2': {'field': 'upper_bound'},
-                    },
-                },
-                {
-                    'mark': {
-                        'type': 'line',
-                        'strokeDash': [6, 4],
-                        'color': '#7f7f7f',
-                        'strokeWidth': 1.5,
-                    },
-                    'encoding': {
-                        'x': {
-                            'field': 'step',
-                            'type': 'quantitative',
+                        'color': {
+                            'field': 'series',
+                            'type': 'nominal',
+                            'scale': {
+                                'domain': list(_SERIES_DOMAIN),
+                                'range': list(_SERIES_COLORS),
+                            },
+                            'legend': {'title': None},
                         },
-                        'y': {
-                            'field': 'target',
-                            'type': 'quantitative',
-                        },
-                    },
-                },
-                {
-                    'mark': {
-                        'type': 'line',
-                        'color': '#1f77b4',
-                        'strokeWidth': 2,
-                    },
-                    'encoding': {
-                        'x': {
-                            'field': 'step',
-                            'type': 'quantitative',
-                        },
-                        'y': {
-                            'field': 'value',
-                            'type': 'quantitative',
+                        'strokeDash': {
+                            'field': 'series',
+                            'type': 'nominal',
+                            'scale': {
+                                'domain': list(_SERIES_DOMAIN),
+                                'range': [list(d) for d in _SERIES_DASH],
+                            },
+                            'legend': None,
                         },
                     },
                 },
                 {
+                    'transform': [{'filter': "datum.series === 'value'"}],
                     'mark': {'type': 'point', 'size': 50, 'filled': True},
                     'encoding': {
                         'x': {
@@ -282,7 +271,7 @@ def _build_vega_lite_spec(rows: list[dict[str, Any]]) -> dict[str, Any]:
                             'type': 'quantitative',
                         },
                         'y': {
-                            'field': 'value',
+                            'field': 'y',
                             'type': 'quantitative',
                         },
                         'color': {
@@ -298,6 +287,74 @@ def _build_vega_lite_spec(rows: list[dict[str, Any]]) -> dict[str, Any]:
         },
         'resolve': {'scale': {'y': 'independent'}},
     }
+
+
+def _build_diagnostics_figure(rows: list[dict[str, Any]]):
+    """Matplotlib overlay: solid value, dotted target, dashed bounds."""
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    n_metrics = len(METRIC_NAMES)
+    fig = Figure(
+        figsize=(10.0, 2.4 * n_metrics),
+        facecolor='white',
+        layout='constrained',
+    )
+    FigureCanvasAgg(fig)
+    axes = fig.subplots(n_metrics, 1, sharex=True)
+    if n_metrics == 1:
+        axes = [axes]
+
+    grouped: dict[str, list[dict[str, Any]]] = {
+        name: [] for name in METRIC_NAMES
+    }
+    for row in rows:
+        name = str(row['metric']).rsplit('/', 1)[-1]
+        if name in grouped:
+            grouped[name].append(row)
+
+    for ax, name in zip(axes, METRIC_NAMES):
+        series = sorted(grouped[name], key=lambda row: row['step'])
+        if series:
+            steps = [row['step'] for row in series]
+            ax.plot(
+                steps,
+                [row['value'] for row in series],
+                linestyle='-',
+                color=_SERIES_COLORS[0],
+                linewidth=2.0,
+                label='value',
+            )
+            ax.plot(
+                steps,
+                [row['target'] for row in series],
+                linestyle=':',
+                color=_SERIES_COLORS[1],
+                linewidth=1.5,
+                label='target',
+            )
+            ax.plot(
+                steps,
+                [row['lower_bound'] for row in series],
+                linestyle='--',
+                color=_SERIES_COLORS[2],
+                linewidth=1.25,
+                label='lower',
+            )
+            ax.plot(
+                steps,
+                [row['upper_bound'] for row in series],
+                linestyle='--',
+                color=_SERIES_COLORS[3],
+                linewidth=1.25,
+                label='upper',
+            )
+        ax.set_ylabel(name)
+        ax.grid(True, alpha=0.25)
+    axes[0].legend(loc='best', frameon=False)
+    axes[-1].set_xlabel('step')
+    fig.suptitle('SIGReg latent collapse diagnostics')
+    return fig
 
 
 def _vega_html(spec: dict[str, Any]) -> str:
@@ -583,15 +640,21 @@ class SIGRegCollapseMonitor:
         spec = _build_vega_lite_spec(self._history)
         payload = {
             'collapse/diagnostics': table,
-            'collapse/line': wandb.plot.line(
+            'collapse/vega': wandb.Html(
+                _vega_html(spec), inject=False
+            ),
+        }
+        try:
+            fig = _build_diagnostics_figure(self._history)
+            payload['collapse/line'] = wandb.Image(fig)
+        except ImportError:
+            payload['collapse/line'] = wandb.plot.line(
                 table,
                 x='step',
                 y='value',
                 stroke='metric',
                 title='SIGReg collapse',
-            ),
-            'collapse/vega': wandb.Html(_vega_html(spec)),
-        }
+            )
         run.log(payload, step=step)
         self._last_table_step = step
 
