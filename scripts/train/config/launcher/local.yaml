@@ -9,6 +9,7 @@ cpus_per_task: 8
 cache_dir: null # Use stable-worldmodel default cache
 wandb:
   enabled: false
+  disable_system: true
   config:
     entity: flamma7-myself
     project: lewm-tdv

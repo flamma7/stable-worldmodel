@@ -339,7 +339,12 @@ def run(cfg):
 
     logger = None
     if cfg.wandb.enabled:
-        logger = WandbLogger(**cfg.wandb.config)
+        wandb_kwargs = OmegaConf.to_container(cfg.wandb.config, resolve=True)
+        if cfg.wandb.get('disable_system', True):
+            import wandb
+
+            wandb_kwargs['settings'] = wandb.Settings(x_disable_stats=True)
+        logger = WandbLogger(**wandb_kwargs)
         logger.log_hyperparams(OmegaConf.to_container(cfg))
 
     run_dir.mkdir(parents=True, exist_ok=True)
