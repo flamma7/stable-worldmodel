@@ -89,6 +89,49 @@ def _swap_compiled_children(model, restore=None):
     return swaps
 
 
+def _compiled_module_prefixes(module):
+    """Dotted names of submodules wrapped by ``torch.compile`` (longest first)."""
+    prefixes = [
+        name
+        for name, child in module.named_modules()
+        if name and getattr(child, '_orig_mod', None) is not None
+    ]
+    prefixes.sort(key=len, reverse=True)
+    return prefixes
+
+
+def _align_state_dict_to_module(module, state_dict):
+    """Map checkpoint keys onto the live module (eager <-> ``_orig_mod``)."""
+    prefixes = _compiled_module_prefixes(module)
+    aligned = {}
+    for key, value in state_dict.items():
+        new_key = key.replace('._orig_mod', '')
+        for prefix in prefixes:
+            eager = f'{prefix}.'
+            compiled = f'{prefix}._orig_mod.'
+            if new_key.startswith(eager):
+                new_key = compiled + new_key[len(eager) :]
+                break
+        aligned[new_key] = value
+    return aligned
+
+
+def _install_compile_ckpt_hook(pl_module):
+    """Remap keys in LightningModule.on_load_checkpoint, which runs before load."""
+    previous = getattr(pl_module, 'on_load_checkpoint', None)
+
+    def on_load_checkpoint(checkpoint):
+        sd = checkpoint.get('state_dict')
+        if isinstance(sd, dict):
+            checkpoint['state_dict'] = _align_state_dict_to_module(
+                pl_module, sd
+            )
+        if callable(previous):
+            previous(checkpoint)
+
+    pl_module.on_load_checkpoint = on_load_checkpoint
+
+
 class WallClockThroughput(Callback):
     """Wall-clock samples/sec via time.perf_counter, no CUDA sync."""
 
@@ -169,7 +212,6 @@ class SaveCkptCallback(Callback):
         self.epoch_interval = epoch_interval
         self.hf_cfg = hf_cfg or {}
         self._hf_api = None
-        self._compile_swaps = None
 
     @property
     def _ckpt_dir(self):
@@ -177,23 +219,6 @@ class SaveCkptCallback(Callback):
             swm.data.utils.get_cache_dir(sub_folder='checkpoints')
             / self.run_name
         )
-
-    def on_load_checkpoint(self, trainer, pl_module, checkpoint):
-        # Checkpoints are saved with compiled wrappers unwrapped. Strip any
-        # leftover ``._orig_mod`` keys and unwrap before Lightning load.
-        sd = checkpoint.get('state_dict')
-        if sd:
-            checkpoint['state_dict'] = {
-                k.replace('._orig_mod', ''): v for k, v in sd.items()
-            }
-        self._compile_swaps = _swap_compiled_children(pl_module.model)
-
-    def on_fit_start(self, trainer, pl_module):
-        if self._compile_swaps:
-            _swap_compiled_children(
-                pl_module.model, restore=self._compile_swaps
-            )
-            self._compile_swaps = None
 
     def on_train_epoch_end(self, trainer, pl_module):
         super().on_train_epoch_end(trainer, pl_module)
@@ -396,6 +421,7 @@ def run(cfg):
         forward=partial(lejepa_forward, cfg=cfg),
         optim=optimizers,
     )
+    _install_compile_ckpt_hook(world_model)
 
     diag_cfg = cfg.loss.sigreg.get('diagnostics')
     if diag_cfg is not None:
@@ -457,18 +483,27 @@ def run(cfg):
                 'load_checkpoint_hf=true requires hf.repo_id '
                 '(see launcher config)'
             )
-        ckpt_path = download_hf_latest_ckpt(hf_cfg, cfg.output_model_name)
+        ckpt_path = str(
+            Path(
+                download_hf_latest_ckpt(hf_cfg, cfg.output_model_name)
+            ).resolve()
+        )
     else:
         legacy = run_dir / f'{cfg.output_model_name}_weights.ckpt'
         if legacy.exists():
-            ckpt_path = str(legacy)
+            ckpt_path = str(legacy.resolve())
 
-    manager = spt.Manager(
+    manager_kwargs = dict(
         trainer=trainer,
         module=world_model,
         data=data_module,
         ckpt_path=ckpt_path,
     )
+    # Full trainer resume (epoch / optim / schedulers), not weights-only init.
+    if ckpt_path is not None:
+        manager_kwargs['weights_only'] = False
+
+    manager = spt.Manager(**manager_kwargs)
 
     manager()
     return
