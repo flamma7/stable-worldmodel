@@ -5,7 +5,7 @@ defaults:
 
 world:
   env_name: swm/OGBCube-v0
-  num_envs: ${eval.num_eval}
+  num_envs: ${eval.batch_size}
   max_episode_steps: ??? # make sure it's >= eval_budget
   env_type: single
   ob_type: states
@@ -32,6 +32,7 @@ plan_config:
 eval:
   name: ???  # required; writes <name>.npz to cwd
   num_eval: 50
+  batch_size: 50  # parallel envs; num_eval is processed in chunks of this size
   goal_offset_steps: 25
   eval_budget: 50
   img_size: 224
