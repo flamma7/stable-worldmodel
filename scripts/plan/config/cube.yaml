@@ -22,6 +22,8 @@ dataset:
 
 seed: 42
 policy: random # ckpt name or random
+# TDV motion encoder is train-only; skip it so those weights never hit GPU.
+drop_motion_encoder: true
 
 plan_config:
   horizon: 5
@@ -30,9 +32,10 @@ plan_config:
 
 # evaluation from dataset (replay expert trajectories)
 eval:
-  name: ???  # required; writes <name>.npz to cwd
+  name: ???  # required; writes data/<name>.npz
   num_eval: 50
   batch_size: 50  # parallel envs; num_eval is processed in chunks of this size
+  num_candidates: 64  # action sequences sampled per scenario (plan ranking)
   goal_offset_steps: 25
   eval_budget: 50
   img_size: 224
