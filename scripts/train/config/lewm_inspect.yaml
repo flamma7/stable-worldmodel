@@ -1,0 +1,21 @@
+defaults:
+  - lewm
+  - _self_
+
+output_model_name: lewm_inspect
+
+# Vanilla LeWM folder with weights.pt + config.json.
+# Accepts an absolute path, a path to weights.pt, a HuggingFace repo id,
+# or a folder name resolved from (in order):
+#   1. the given path
+#   2. <launch-dir and parents>/.stablewm/checkpoints/<name>
+#   3. {STABLEWM_HOME}/checkpoints/<name> via load_pretrained
+pretrained_model_dir: models--quentinll--lewm-cube
+
+compile: false
+make_it_fast: false
+log_throughput: false
+
+# Inspection only: one pass over the training loop, no weight updates.
+trainer:
+  max_epochs: 10
