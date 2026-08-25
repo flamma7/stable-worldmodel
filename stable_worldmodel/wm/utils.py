@@ -44,7 +44,12 @@ def save_pretrained(
     return
 
 
-def load_pretrained(name: str, cache_dir: str = None, extra_args=None):
+def load_pretrained(
+    name: str,
+    cache_dir: str = None,
+    extra_args=None,
+    drop_modules=None,
+):
     """Load a model from a local checkpoint or a HuggingFace repository.
 
     Supported formats for `name`:
@@ -71,6 +76,10 @@ def load_pretrained(name: str, cache_dir: str = None, extra_args=None):
         ```
 
     All local paths are resolved relative to `<cache_dir>/checkpoints/`.
+
+    ``drop_modules`` skips named constructor args (and matching ``state_dict``
+    keys) so those submodules are never built or moved to GPU. Use this for
+    train-only heads such as LeWM-TDV's ``motion_encoder``.
     """
     from hydra.utils import instantiate
 
@@ -88,9 +97,42 @@ def load_pretrained(name: str, cache_dir: str = None, extra_args=None):
                 d = d.setdefault(part, {})
             d[parts[-1]] = value
 
+    if drop_modules:
+        state_dict, config = _strip_modules(state_dict, config, drop_modules)
+
     model = instantiate(config)
     model.load_state_dict(state_dict)
     return model
+
+
+def _strip_modules(state_dict, config, names):
+    """Remove unused submodules from a Hydra config and checkpoint dict."""
+    if isinstance(names, str):
+        names = (names,)
+    names = tuple(names)
+
+    present = []
+    for name in names:
+        in_cfg = isinstance(config, dict) and name in config
+        in_sd = any(k == name or k.startswith(f'{name}.') for k in state_dict)
+        if in_cfg:
+            config.pop(name)
+        if in_cfg or in_sd:
+            present.append(name)
+
+    if not present:
+        return state_dict, config
+
+    logging.info(
+        f'Skipping unused submodule(s) {present}: '
+        'not instantiated, weights not loaded onto the model'
+    )
+    keep = {
+        k: v
+        for k, v in state_dict.items()
+        if not any(k == n or k.startswith(f'{n}.') for n in present)
+    }
+    return keep, config
 
 
 def _resolve(name: str, cache_dir: Path) -> tuple[Path, dict]:

@@ -32,6 +32,13 @@ class TinyModel(nn.Module):
         return self.linear(x)
 
 
+class TinyModelWithAux(nn.Module):
+    def __init__(self, in_features: int = 4, out_features: int = 2, aux=None):
+        super().__init__()
+        self.linear = nn.Linear(in_features, out_features)
+        self.aux = aux
+
+
 TINY_CONFIG = {
     '_target_': 'tests.wm.test_utils.TinyModel',
     'in_features': 4,
@@ -259,6 +266,40 @@ def test_load_pretrained_instantiate_called_with_config(tmp_path):
         mock_inst.return_value = TinyModel()
         load_pretrained('run1/weights.pt', cache_dir=tmp_path)
     assert mock_inst.call_args[0][0]['_target_'] == TINY_CONFIG['_target_']
+
+
+def test_load_pretrained_drop_modules_skips_aux(tmp_path):
+    original = TinyModelWithAux(aux=nn.Linear(4, 2))
+    run_dir = _ckpt_root(tmp_path) / 'run_aux'
+    run_dir.mkdir(parents=True, exist_ok=True)
+    torch.save(original.state_dict(), run_dir / 'weights.pt')
+    (run_dir / 'config.json').write_text(
+        json.dumps(
+            {
+                **TINY_CONFIG,
+                '_target_': 'tests.wm.test_utils.TinyModelWithAux',
+                'aux': {
+                    '_target_': 'torch.nn.Linear',
+                    'in_features': 4,
+                    'out_features': 2,
+                },
+            }
+        )
+    )
+
+    with patch('hydra.utils.instantiate') as mock_inst:
+        mock_inst.return_value = TinyModelWithAux(aux=None)
+        loaded = load_pretrained(
+            'run_aux/weights.pt',
+            cache_dir=tmp_path,
+            drop_modules=('aux',),
+        )
+
+    called_cfg = mock_inst.call_args[0][0]
+    assert 'aux' not in called_cfg
+    assert loaded.aux is None
+    torch.testing.assert_close(original.linear.weight, loaded.linear.weight)
+    assert all(not k.startswith('aux.') for k in loaded.state_dict())
 
 
 def test_load_pretrained_missing_checkpoint_raises(tmp_path):

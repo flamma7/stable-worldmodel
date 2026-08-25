@@ -210,7 +210,12 @@ def run(cfg: DictConfig):
     policy = cfg.get('policy', 'random')
 
     if policy != 'random':
-        model = swm.wm.utils.load_pretrained(cfg.policy)
+        drop = (
+            ('motion_encoder',)
+            if cfg.get('drop_motion_encoder', True)
+            else None
+        )
+        model = swm.wm.utils.load_pretrained(cfg.policy, drop_modules=drop)
         if cfg.get('bf16', False):
             model = model.to(torch.bfloat16)
         model = model.to('cuda')
