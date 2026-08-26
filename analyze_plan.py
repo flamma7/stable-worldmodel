@@ -259,7 +259,8 @@ def main():
         print()
         print('skipped:')
         for path, exc in skipped:
-            print(f'  {path.name}: {exc}')
+            print(f'  {path.name}')
+            # print(f'  {path.name}: {exc}')
 
 
 if __name__ == '__main__':
