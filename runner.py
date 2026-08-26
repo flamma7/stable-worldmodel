@@ -10,7 +10,7 @@ LEWM_LAMBDA / OUTPUT_MODEL_NAME from the ablation. Pods are named
 After launch, waits 60s and checks that the pod is still running.
 
 Ablations that already have a running pod ID are skipped. After launch,
-writes the pod ID back onto that ablation so pod_status.py can check it.
+writes the pod ID back onto that ablation.
 
     Defaults:
     Template: my_template
@@ -36,7 +36,6 @@ Features:
 Example:
     python runner.py --region canada
     python runner.py --index 1 --env JOB_ID=123
-    python pod_status.py
 """
 
 import argparse
