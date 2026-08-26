@@ -1,0 +1,6 @@
+name_prension: start22
+ablations:
+  - a: 0.3
+    lr: 5.0e-05
+    lam: 0.4
+    pod_id: xpe517jmfd30wt
