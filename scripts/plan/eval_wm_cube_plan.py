@@ -4,6 +4,10 @@ python scripts/plan/eval_wm_cube_plan.py policy=quentinll/lewm-cube eval.name=og
 
 """Collect candidate-plan costs for a world model.
 
+``eval.num_eval`` is the number of start/goal scenarios.
+``eval.num_candidates`` is the number of random action sequences sampled
+per scenario (N below). Spearman ρ is computed across those N plans.
+
 For each dataset scenario (fixed start and goal), sample N action sequences,
 score them with the world model's latent planning cost, then execute the same
 sequences in the simulator and record terminal cube / gripper distances.
