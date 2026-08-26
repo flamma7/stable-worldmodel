@@ -10,7 +10,7 @@ LEWM_LAMBDA / OUTPUT_MODEL_NAME from the ablation. Pods are named
 After launch, waits 60s and checks that the pod is still running.
 
 Ablations that already have a running pod ID are skipped. After launch,
-writes the pod ID back onto that ablation.
+writes the pod ID and output_model_name back onto that ablation.
 
     Defaults:
     Template: my_template
@@ -28,7 +28,7 @@ Features:
     - Inherits environment variables from the template.
     - Injects LEWM_LR / LEMW_ALPHA / LEWM_LAMBDA / OUTPUT_MODEL_NAME.
     - Allows template environment variables to be overridden with --env.
-    - Writes the launched pod ID onto each ablation in tester.yaml.
+    - Writes the launched pod ID and output_model_name onto each ablation.
     - Skips ablations whose recorded pod ID is still running.
     - Waits after launch and reports success if the pod is still running.
     - Reads the Runpod API key from the RUNPOD_API_KEY environment variable.
@@ -355,6 +355,7 @@ def main():
         pod = r.json()
         pod_id = pod["id"]
         ablation["pod_id"] = pod_id
+        ablation["output_model_name"] = pod_name
         save_config(args.config, cfg)
         launched += 1
 
