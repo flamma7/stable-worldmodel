@@ -12,7 +12,7 @@ For each dataset scenario (fixed start and goal), sample N action sequences,
 score them with the world model's latent planning cost, then execute the same
 sequences in the simulator and record terminal cube / gripper distances.
 
-Writes ``data/<eval.name>.npz`` for ``analyze_plan.py``. Per-scenario arrays:
+Writes ``<eval.output_dir>/plan_<eval.name>.npz`` for ``analyze_plan.py``. Per-scenario arrays:
 
 - cost_latent: (N,)  |z_hat_H - z_g|_2^2  from ``model.get_cost``
 - cost_cube: (N,)    |p_cube,H - p_cube,g|_2
@@ -469,8 +469,11 @@ def run(cfg: DictConfig):
     elapsed = time.time() - start_time
     print(f'[eval] collection finished in {elapsed:.1f}s')
 
+    output_dir = getattr(cfg.eval, 'output_dir', 'data')
     npz_path = (
-        Path(hydra.utils.get_original_cwd()) / 'data' / f'plan_{cfg.eval.name}.npz'
+        Path(hydra.utils.get_original_cwd())
+        / output_dir
+        / f'plan_{cfg.eval.name}.npz'
     )
     npz_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(

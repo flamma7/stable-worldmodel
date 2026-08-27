@@ -232,3 +232,4 @@ CLAUDE.md
 uv.lock
 
 *.npz
+*.png

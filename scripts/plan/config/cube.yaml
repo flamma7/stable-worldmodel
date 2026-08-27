@@ -32,7 +32,8 @@ plan_config:
 
 # evaluation from dataset (replay expert trajectories)
 eval:
-  name: ???  # required; writes data/<name>.npz
+  name: ???  # required; writes <output_dir>/<name>.npz
+  output_dir: data
   num_eval: 50
   batch_size: 50  # parallel envs; num_eval is processed in chunks of this size
   num_candidates: 64  # action sequences sampled per scenario (plan ranking)

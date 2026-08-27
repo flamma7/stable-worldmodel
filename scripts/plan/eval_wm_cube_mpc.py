@@ -484,7 +484,11 @@ def run(cfg: DictConfig):
     records['gripper_success'] = gripper_success.reshape(n)
     records['both_success'] = both_success.reshape(n)
 
-    npz_path = Path(hydra.utils.get_original_cwd()) / 'data' / f'{cfg.eval.name}.npz'
+    output_dir = getattr(cfg.eval, 'output_dir', 'data')
+    npz_path = (
+        Path(hydra.utils.get_original_cwd()) / output_dir / f'{cfg.eval.name}.npz'
+    )
+    npz_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(
         npz_path,
         records=records,
