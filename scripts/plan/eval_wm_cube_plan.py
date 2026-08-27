@@ -19,12 +19,16 @@ Writes ``<eval.output_dir>/plan_<eval.name>.npz`` for ``analyze_plan.py``. Per-s
 - cost_gripper: (N,) |p_gripper,H - p_gripper,g|_2
 """
 
-import gymnasium as gym
-gym.logger.set_level(gym.logger.ERROR)
 import warnings
+
 warnings.filterwarnings(
-    "ignore",
-    message="lancedb fork support is experimental.*",
+    'ignore',
+    message='.*precision lowered by casting to float32.*',
+    module='gymnasium.spaces.box',
+)
+warnings.filterwarnings(
+    'ignore',
+    message='lancedb fork support is experimental.*',
     category=RuntimeWarning,
 )
 

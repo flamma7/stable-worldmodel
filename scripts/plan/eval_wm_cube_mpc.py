@@ -32,12 +32,16 @@ from sklearn import preprocessing
 from torchvision.transforms import v2 as transforms
 import stable_worldmodel as swm
 
-import gymnasium as gym
-gym.logger.set_level(gym.logger.ERROR)
 import warnings
+
 warnings.filterwarnings(
-    "ignore",
-    message="lancedb fork support is experimental.*",
+    'ignore',
+    message='.*precision lowered by casting to float32.*',
+    module='gymnasium.spaces.box',
+)
+warnings.filterwarnings(
+    'ignore',
+    message='lancedb fork support is experimental.*',
     category=RuntimeWarning,
 )
 
