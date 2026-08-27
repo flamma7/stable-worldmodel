@@ -48,7 +48,8 @@ env = [
     "shapely",
     "ogbench",
     "minigrid",
-    "gymnasium[all]",
+    # Updated from gymnasium[all]: cube/ogbench only need the mujoco extra (skips box2d-py).
+    "gymnasium[mujoco]",
     "gymnasium-robotics",
     "opencv-python-headless",
     "stable_baselines3>=2.0.0",
