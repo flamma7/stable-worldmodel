@@ -182,6 +182,7 @@ def main():
     subdir = cfg["hf_subdir"]
     output_dir = cfg.get("eval_output_dir", "data")
     eval_output_hf = bool(cfg.get("eval_output_hf", False))
+    eval_quentinll = bool(cfg.get("eval_quentinll", False))
     if "STABLEWM_HOME" not in os.environ:
         raise SystemExit("STABLEWM_HOME is required")
     ckpt_root = Path(os.environ["STABLEWM_HOME"]) / "checkpoints"
@@ -214,17 +215,18 @@ def main():
                 )
             )
 
-        written.append(
-            run_eval(
-                args.mode,
-                "quentinll/lewm-cube",
-                f"quentinll_{suffix}_cube_{args.seed}",
-                args.seed,
-                args.num_eval,
-                args.batch_size,
-                output_dir,
+        if eval_quentinll:
+            written.append(
+                run_eval(
+                    args.mode,
+                    "quentinll/lewm-cube",
+                    f"quentinll_{suffix}_cube_{args.seed}",
+                    args.seed,
+                    args.num_eval,
+                    args.batch_size,
+                    output_dir,
+                )
             )
-        )
     finally:
         if eval_output_hf and written:
             push_eval_npzs(repo, subdir, output_dir, written)
