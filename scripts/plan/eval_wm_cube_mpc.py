@@ -15,6 +15,7 @@ are scored on that same trajectory (0.04m anytime threshold). Writes a
 - arm_displacement: expert ||goal_gripper - start_gripper||
 """
 
+
 import os
 
 os.environ['MUJOCO_GL'] = 'egl'
@@ -30,6 +31,15 @@ from omegaconf import DictConfig, OmegaConf
 from sklearn import preprocessing
 from torchvision.transforms import v2 as transforms
 import stable_worldmodel as swm
+
+import gymnasium as gym
+gym.logger.set_level(gym.logger.ERROR)
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    message="lancedb fork support is experimental.*",
+    category=RuntimeWarning,
+)
 
 # Same 0.04m threshold CubeEnv uses for cube-to-target success.
 SUCCESS_THRESHOLD = 0.04
