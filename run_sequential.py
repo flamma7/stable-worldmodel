@@ -117,10 +117,7 @@ def main():
         raise SystemExit(f"yaml not found: {yaml_path}")
 
     repo, subdir, models = load_yaml(yaml_path)
-    ckpt_root = (
-        Path(os.environ.get("STABLEWM_HOME", Path.home() / ".stable_worldmodel"))
-        / "checkpoints"
-    )
+    ckpt_root = Path(os.environ["STABLEWM_HOME"]) / "checkpoints"
 
     print(f"Checking {len(models)} model(s) from {yaml_path}")
     pts = []
