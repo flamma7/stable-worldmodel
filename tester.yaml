@@ -1,5 +1,9 @@
 name_prension: start22
+hf_repo: flamma77/lewm-base
+hf_subdir: tdv
 ablations:
-  - a: 0.3
+  - a: 0.0
     lr: 5.0e-05
     lam: 0.4
+    pod_id: xpe517jmfd30wt
+    output_model_name: start2_a0.0_l0.4_lr5e-5

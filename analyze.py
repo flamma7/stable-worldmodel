@@ -94,7 +94,7 @@ def print_gripper_cube_table(gripper_success, cube_success):
 
 
 class IncompatibleNpz(ValueError):
-    """npz is not a table-eval dump from eval_wm_cube_table.py."""
+    """npz is not a table-eval dump from eval_wm_cube_mpc.py."""
 
 
 def load_records(path):

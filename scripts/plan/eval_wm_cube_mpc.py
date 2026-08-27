@@ -1,5 +1,5 @@
 """
-python scripts/plan/eval_wm_cube_table.py policy=quentinll/lewm-cube eval.name=ogb_cube_table eval.dataset_name=galilai-group/ogb_cube_single seed=42 eval.num_eval=50 eval.batch_size=50 -cn cube
+python scripts/plan/eval_wm_cube_mpc.py policy=quentinll/lewm-cube eval.name=ogb_cube_table eval.dataset_name=galilai-group/ogb_cube_single seed=42 eval.num_eval=50 eval.batch_size=50 -cn cube
 """
 
 """Evaluate a World Model with one full-budget MPC rollout per scenario.
