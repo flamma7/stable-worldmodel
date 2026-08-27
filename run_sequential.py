@@ -200,36 +200,31 @@ def main():
         ensure_hf_eval_dir(repo, subdir, output_dir)
 
     suffix = "plan" if args.mode == "plan" else "icem"
-    written = []
-    try:
-        for name, pt in zip(models, pts):
-            written.append(
-                run_eval(
-                    args.mode,
-                    pt,
-                    f"{name}_{suffix}_{args.seed}",
-                    args.seed,
-                    args.num_eval,
-                    args.batch_size,
-                    output_dir,
-                )
-            )
+    for name, pt in zip(models, pts):
+        npz = run_eval(
+            args.mode,
+            pt,
+            f"{name}_{suffix}_{args.seed}",
+            args.seed,
+            args.num_eval,
+            args.batch_size,
+            output_dir,
+        )
+        if eval_output_hf:
+            push_eval_npzs(repo, subdir, output_dir, [npz])
 
-        if eval_quentinll:
-            written.append(
-                run_eval(
-                    args.mode,
-                    "quentinll/lewm-cube",
-                    f"quentinll_{suffix}_cube_{args.seed}",
-                    args.seed,
-                    args.num_eval,
-                    args.batch_size,
-                    output_dir,
-                )
-            )
-    finally:
-        if eval_output_hf and written:
-            push_eval_npzs(repo, subdir, output_dir, written)
+    if eval_quentinll:
+        npz = run_eval(
+            args.mode,
+            "quentinll/lewm-cube",
+            f"quentinll_{suffix}_cube_{args.seed}",
+            args.seed,
+            args.num_eval,
+            args.batch_size,
+            output_dir,
+        )
+        if eval_output_hf:
+            push_eval_npzs(repo, subdir, output_dir, [npz])
 
 
 if __name__ == "__main__":
