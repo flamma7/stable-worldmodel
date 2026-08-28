@@ -4,7 +4,7 @@
 Runpod Community Cloud Pod Launcher
 
 Launches a Runpod Community Cloud pod for every ablation in tester.yaml.
-Defaults to template my_template and injects LEWM_LR / LEMW_ALPHA /
+Defaults to template my_template and injects LEWM_LR / TDV_ALPHA /
 LEWM_LAMBDA / OUTPUT_MODEL_NAME from the ablation. Pods are named
 {name_prension}_a{a}_l{lam}_lr{lr} from tester.yaml.
 After launch, waits 60s and checks that the pod is still running.
@@ -26,7 +26,7 @@ Features:
     - Supports configurable GPU type and count.
     - Restricts deployment to a selected country/region.
     - Inherits environment variables from the template.
-    - Injects LEWM_LR / LEMW_ALPHA / LEWM_LAMBDA / OUTPUT_MODEL_NAME.
+    - Injects LEWM_LR / TDV_ALPHA / LEWM_LAMBDA / OUTPUT_MODEL_NAME.
     - Allows template environment variables to be overridden with --env.
     - Writes the launched pod ID and output_model_name onto each ablation.
     - Skips ablations whose recorded pod ID is still running.
@@ -326,7 +326,7 @@ def main():
 
         env = dict(template.get("env") or {})
         env["LEWM_LR"] = str(ablation["lr"])
-        env["LEMW_ALPHA"] = str(ablation["a"])
+        env["TDV_ALPHA"] = str(ablation["a"])
         env["LEWM_LAMBDA"] = str(ablation["lam"])
         env["OUTPUT_MODEL_NAME"] = pod_name
         env.update(extra_env)
