@@ -8,53 +8,54 @@ ablations:
   - a: 0.0
     lr: 5.0e-05
     lam: 0.1
+    pod_id: mqwi3dfq665ao7
+    output_model_name: start22_a0.0_l0.1_lr5e-5
   - a: 1.0
     lr: 5.0e-05
     lam: 0.15
+    pod_id: ialwpvfn5svsqb
+    output_model_name: start22_a1.0_l0.15_lr5e-5
   - a: 1.0
     lr: 5.0e-05
     lam: 0.2
+    pod_id: 1nmrtgku62154e
+    output_model_name: start22_a1.0_l0.2_lr5e-5
   - a: 2.0
     lr: 5.0e-05
     lam: 0.1
-
-# PAST ABLATIONS
-# ablations:
-  # - a: 0.0
-  #   lr: 5.0e-05
-  #   lam: 0.03
-  #   output_model_name: start2_a0.0_l0.03_lr5e-5
-  # - a: 0.0
-  #   lr: 5.0e-05
-  #   lam: 0.4
-  #   output_model_name: start2_a0.0_l0.4_lr5e-5
-  # - a: 0.0
-  #   lr: 5.0e-05
-  #   lam: 1.0
-  #   output_model_name: start2_a0.0_l1.0_lr5e-5
-  # - a: 1.0
-  #   lr: 5.0e-05
-  #   lam: 0.03
-  #   output_model_name: start2_a1.0_l0.03_lr5e-5
-  # - a: 0.0
-  #   lr: 5.0e-05
-  #   lam: 0.4
-  #   pod_id: xpe517jmfd30wt
-  #   output_model_name: start2_a0.0_l0.4_lr5e-5  
-  # - a: 0.3
-  #   lr: 5.0e-05
-  #   lam: 0.4
-  #   output_model_name: start22_a0.3_l0.4_lr5e-5
-  # - a: 1.0
-  #   lr: 5.0e-05
-  #   lam: 0.4
-  #   output_model_name: start2_a1.0_l0.4_lr5e-5
-  # - a: 1.0
-  #   lr: 5.0e-05
-  #   lam: 0.1
-  #   output_model_name: start2_a1.0_l0.1_lr5e-5
-  # - a: 0.0
-  #   lr: 5.0e-05
-  #   lam: 0.25
-  #   pod_id: jyf0gq70b8fdls
-  #   output_model_name: start22_a0.0_l0.25_lr5e-5
+    pod_id: 23xtzzwb0lcj9m
+    output_model_name: start22_a2.0_l0.1_lr5e-5
+past_ablations:
+  - a: 0.3
+    lr: 5.0e-05
+    lam: 0.4
+    output_model_name: start22_a0.3_l0.4_lr5e-5
+  - a: 1.0
+    lr: 5.0e-05
+    lam: 0.1
+    output_model_name: start2_a1.0_l0.1_lr5e-5
+  - a: 1.0
+    lr: 5.0e-05
+    lam: 0.4
+    output_model_name: start2_a1.0_l0.4_lr5e-5
+  - a: 0.0
+    lr: 5.0e-05
+    lam: 0.25
+    pod_id: jyf0gq70b8fdls
+    output_model_name: start22_a0.0_l0.25_lr5e-5
+  - a: 0.0
+    lr: 5.0e-05
+    lam: 0.03
+    output_model_name: start2_a0.0_l0.03_lr5e-5
+  - a: 0.0
+    lr: 5.0e-05
+    lam: 0.4
+    output_model_name: start2_a0.0_l0.4_lr5e-5
+  - a: 0.0
+    lr: 5.0e-05
+    lam: 1.0
+    output_model_name: start2_a0.0_l1.0_lr5e-5
+  - a: 1.0
+    lr: 5.0e-05
+    lam: 0.03
+    output_model_name: start2_a1.0_l0.03_lr5e-5
