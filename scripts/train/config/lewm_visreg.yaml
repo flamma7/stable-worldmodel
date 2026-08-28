@@ -1,0 +1,41 @@
+defaults:
+  - lewm
+  - _self_
+
+output_model_name: lewm_visreg
+compile: true
+make_it_fast: false
+log_throughput: false # logs samples/sec and other metrics
+
+# VISReg replaces SIGReg as the collapse regularizer. No TDV / motion_encoder.
+loss:
+  sigreg: null
+  visreg:
+    lam_scale: 1.0
+    lam_shape: 1.0
+    lam_center: 1.0
+    num_projections: 4096
+    # Collapse diagnostics on post-projection embeddings passed to VISReg.
+    # Buffers stay on CPU and never enter the training loss / graph.
+    diagnostics:
+      enabled: true
+      buffer_size: 8192
+      sample_every: 16
+      sample_size: 48
+      log_every: 400
+      table_log_every: 2000
+      min_samples: 2048
+      eps: 1.0e-12
+      background: true
+      variance_mean:
+        target: 1.0
+        lower_bound: 0.8
+        upper_bound: 1.2
+      effective_rank_frac:
+        target: 1.0
+        lower_bound: 0.9
+        upper_bound: 1.0
+      mean_rms:
+        target: 0.0
+        lower_bound: 0.0
+        upper_bound: 0.05

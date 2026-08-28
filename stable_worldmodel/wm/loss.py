@@ -1,6 +1,74 @@
+import math
+
 import torch
 import torch.nn.functional as F
 from einops import einsum
+
+
+class VISReg(torch.nn.Module):
+    """Variance-Invariance-Sketching Regularizer.
+
+    Matches HaiyuWu/visreg: scale (unit variance), shape (Gaussian
+    sketch quantiles), and center (zero mean). ``z`` is ``(T, B, D)``.
+    Reference: https://github.com/HaiyuWu/visreg
+    """
+
+    def __init__(
+        self,
+        num_projections: int = 256,
+        lam_scale: float = 1.0,
+        lam_shape: float = 1.0,
+        lam_center: float = 1.0,
+    ):
+        super().__init__()
+        self.K = num_projections
+        self.lam_scale = lam_scale
+        self.lam_shape = lam_shape
+        self.lam_center = lam_center
+        self._cached_B = -1
+        self._cached_target = None
+
+    def _get_target(self, B: int, device) -> torch.Tensor:
+        # Inverse-CDF Gaussian quantiles in fp32 to avoid AMP precision loss.
+        if self._cached_B != B:
+            q = torch.linspace(1, B, B, device=device, dtype=torch.float32) / (
+                B + 1
+            )
+            self._cached_target = torch.erfinv(2 * q - 1).mul_(math.sqrt(2))
+            self._cached_B = B
+        return self._cached_target.to(device=device)
+
+    def forward(self, z):
+        """
+        z: (T, B, D)
+        """
+        _, B, D = z.shape
+
+        mu = z.mean(dim=1, keepdim=True)
+        center_loss = mu.pow(2).mean()
+
+        z_centered = z - mu
+        std = z_centered.norm(dim=1).div(math.sqrt(B)).clamp_min(1e-6)
+        scale_loss = (std - 1.0).pow(2).mean()
+
+        z_norm = z_centered / std.detach().unsqueeze(1)
+        W = F.normalize(
+            torch.randn(D, self.K, device=z.device, dtype=z.dtype), dim=0
+        )
+        p_sorted = (z_norm @ W).sort(dim=1).values
+        target = self._get_target(B, z.device).view(1, B, 1)
+        shape_loss = (p_sorted - target).pow(2).mean()
+
+        return {
+            'visreg_scale_loss': scale_loss,
+            'visreg_shape_loss': shape_loss,
+            'visreg_center_loss': center_loss,
+            'visreg_loss': (
+                self.lam_scale * scale_loss
+                + self.lam_shape * shape_loss
+                + self.lam_center * center_loss
+            ),
+        }
 
 
 class SIGReg(torch.nn.Module):
@@ -129,4 +197,5 @@ __all__ = [
     'SIGReg',
     'TemporalStraighteningLoss',
     'VCReg',
+    'VISReg',
 ]
