@@ -424,6 +424,7 @@ def lejepa_forward(self, batch, stage, cfg):
 
     ctx_len = cfg.wm.history_size
     n_preds = cfg.wm.num_preds
+    alpha = cfg.loss.visreg.alpha
 
     # Replace NaN values with 0 (occurs at sequence boundaries)
     batch['action'] = torch.nan_to_num(batch['action'], 0.0)
@@ -443,7 +444,7 @@ def lejepa_forward(self, batch, stage, cfg):
     # LeWM + VISReg loss
     output['pred_loss'] = (pred_emb - tgt_emb).pow(2).mean()
     output.update(self.visreg(emb.transpose(0, 1)))
-    output['loss'] = output['pred_loss'] + output['visreg_loss']
+    output['loss'] = output['pred_loss'] + alpha * output['visreg_loss']
 
     losses_dict = {
         f'{stage}/{k}': v.detach() for k, v in output.items() if 'loss' in k
@@ -459,6 +460,7 @@ def lejepa_forward(self, batch, stage, cfg):
 def _visreg_from_cfg(cfg):
     visreg_cfg = OmegaConf.to_container(cfg.loss.visreg, resolve=True)
     visreg_cfg.pop('diagnostics', None)
+    visreg_cfg.pop('alpha', None)
     return VISReg(**visreg_cfg)
 
 

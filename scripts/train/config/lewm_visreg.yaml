@@ -11,6 +11,7 @@ log_throughput: false # logs samples/sec and other metrics
 loss:
   sigreg: null
   visreg:
+    alpha: 1.0
     lam_scale: 1.0
     lam_shape: 1.0
     lam_center: 1.0
