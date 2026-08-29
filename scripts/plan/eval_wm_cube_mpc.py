@@ -334,11 +334,15 @@ def run(cfg: DictConfig):
 
     world.set_policy(policy)
 
+    save_video = bool(cfg.eval.get('save_video', True))
     results_path.mkdir(parents=True, exist_ok=True)
-    print(
-        f'[eval] saving videos to {results_path.resolve()} '
-        '(one env_{i}.mp4 per env, under batch_* dirs)'
-    )
+    if save_video:
+        print(
+            f'[eval] saving videos to {results_path.resolve()} '
+            '(one env_{i}.mp4 per env, under batch_* dirs)'
+        )
+    else:
+        print('[eval] save_video=false, skipping mp4 writes')
 
     autocast_ctx = torch.autocast(
         device_type='cuda',
@@ -429,11 +433,14 @@ def run(cfg: DictConfig):
                 f'[eval] batch {batch_idx + 1}/{n_batches} '
                 f'({start}:{end} of {n_eval})'
             )
+            video_dir = (
+                results_path / f'batch_{start:04d}' if save_video else None
+            )
             metrics, cube_any, grip_any = run_chunk(
                 eval_world,
                 start,
                 end,
-                results_path / f'batch_{start:04d}',
+                video_dir,
             )
             metric_chunks.append(metrics)
             cube_chunks.append(cube_any)
@@ -459,7 +466,8 @@ def run(cfg: DictConfig):
         )
 
     print(metrics)
-    print(f'[eval] videos saved to {results_path.resolve()}')
+    if save_video:
+        print(f'[eval] videos saved to {results_path.resolve()}')
 
     results_path = results_path / cfg.output.filename
     results_path.parent.mkdir(parents=True, exist_ok=True)
