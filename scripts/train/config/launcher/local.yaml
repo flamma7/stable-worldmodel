@@ -12,7 +12,7 @@ wandb:
   disable_system: true
   config:
     entity: flamma7-myself
-    project: lewm-tdv
+    project: lewm-visreg
     name: ${output_model_name}
     id: ${subdir}
     resume: allow
@@ -23,4 +23,4 @@ wandb:
 hf:
   enabled: false
   repo_id: flamma77/lewm-base
-  path_prefix: tdv/${output_model_name}
+  path_prefix: visreg/${output_model_name}
