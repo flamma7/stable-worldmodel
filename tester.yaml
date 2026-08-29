@@ -2,7 +2,7 @@ name_prension: start22
 hf_repo: flamma77/lewm-base
 hf_subdir: tdv
 eval_output_dir: data
-eval_output_hf: false
+eval_output_hf: true
 eval_quentinll: false
 ablations:
   - a: 0.0
@@ -15,16 +15,16 @@ ablations:
     lam: 0.15
     pod_id: ialwpvfn5svsqb
     output_model_name: start22_a1.0_l0.15_lr5e-5
-  - a: 1.0
-    lr: 5.0e-05
-    lam: 0.2
-    pod_id: 1nmrtgku62154e
-    output_model_name: start22_a1.0_l0.2_lr5e-5
-  - a: 2.0
-    lr: 5.0e-05
-    lam: 0.1
-    pod_id: 23xtzzwb0lcj9m
-    output_model_name: start22_a2.0_l0.1_lr5e-5
+  # - a: 1.0
+  #   lr: 5.0e-05
+  #   lam: 0.2
+  #   pod_id: 1nmrtgku62154e
+  #   output_model_name: start22_a1.0_l0.2_lr5e-5
+  # - a: 2.0
+  #   lr: 5.0e-05
+  #   lam: 0.1
+  #   pod_id: 23xtzzwb0lcj9m
+  #   output_model_name: start22_a2.0_l0.1_lr5e-5
 past_ablations:
   - a: 0.3
     lr: 5.0e-05
