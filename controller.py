@@ -380,7 +380,7 @@ def deploy_job(key, spec, dry_run_container=False):
     }
     if dry_run_container:
         env["DRY_RUN"] = "1"
-    pod_name = f"{spec['model_name']}_{spec['mode']}".replace("/", "-")
+    pod_name = f"{spec['model_name']}_{spec['mode']}_{key}".replace("/", "-")
     print(
         f"{key}: deploying {pod_name} on {spec['gpu']} "
         f"({spec['cloud']}, {spec['region']})"
