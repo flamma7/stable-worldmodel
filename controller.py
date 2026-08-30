@@ -6,6 +6,7 @@
     python controller.py job_configs/visreg_ogb.yaml 1-5
     python controller.py job_configs/visreg_ogb.yaml train
     python controller.py job_configs/visreg_ogb.yaml mpc --local
+    python controller.py job_configs/visreg_ogb.yaml train --at 21:30
 """
 
 from __future__ import annotations
@@ -16,6 +17,8 @@ import re
 import shlex
 import subprocess
 import sys
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import yaml
@@ -85,7 +88,40 @@ def parse_args():
         action="store_true",
         help="Deploy the pod with DRY_RUN=1 so startup.sh skips install and waits",
     )
+    parser.add_argument(
+        "--at",
+        default=None,
+        metavar="HH:MM",
+        help="Local 24-hour time to start (e.g. 21:30). Default: now",
+    )
     return parser.parse_args()
+
+
+def parse_at(value):
+    raw = str(value).strip()
+    if re.fullmatch(r"\d{4}", raw):
+        raw = f"{raw[:2]}:{raw[2:]}"
+    match = re.fullmatch(r"(\d{1,2}):(\d{2})", raw)
+    if not match:
+        raise SystemExit(f"invalid --at '{value}', expected HH:MM (e.g. 21:30)")
+    hour, minute = int(match.group(1)), int(match.group(2))
+    if hour > 23 or minute > 59:
+        raise SystemExit(f"invalid --at '{value}', hour 0-23 and minute 00-59")
+    return hour, minute
+
+
+def wait_until_local(hour, minute):
+    now = datetime.now()
+    target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if target <= now:
+        target += timedelta(days=1)
+    wait_s = (target - now).total_seconds()
+    print(
+        f"Waiting until {target.strftime('%Y-%m-%d %H:%M')} local "
+        f"({int(wait_s)}s / {wait_s / 3600:.1f}h)"
+    )
+    time.sleep(wait_s)
+    print(f"Starting at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} local")
 
 
 def load_yaml(path):
@@ -407,6 +443,10 @@ def main():
     print_plan(matched, skipped, to_run, args.local)
     if args.dry_run or not to_run:
         return
+
+    if args.at:
+        hour, minute = parse_at(args.at)
+        wait_until_local(hour, minute)
 
     for key, spec in to_run:
         job = cfg[key]
