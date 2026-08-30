@@ -1,5 +1,5 @@
-eval_quentinll: false
 name: visreg
+train_script: scripts/train/lewm_visreg.py
 default:
   all:
     region: us
@@ -201,7 +201,7 @@ job14:
 job15:
   mode: mpc
   output_model_name: visreg_a3.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
-  pod_id: bfhg1yjj8ipyhb
+  pod_id: 2x9yfhbnb5eqs2
   status: running
 job16:
   mode: mpc

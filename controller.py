@@ -51,8 +51,9 @@ TRAIN_SKIP_KEYS = {
     "num_eval",
     "eval_output_dir",
     "eval_output_hf",
-    "eval_quentinll",
     "save_video",
+    "train_script",
+    "gpu_options",
 }
 
 
@@ -284,7 +285,8 @@ def build_train_cmd(cfg, job, mapped):
     extras.pop("output_model_name", None)
     extras["hf.path_prefix"] = hf_prefix(cfg)
 
-    parts = [f"python {TRAIN_SCRIPT}", f"output_model_name={model_name}"]
+    script = pick(mapped, cfg, "train_script", TRAIN_SCRIPT)
+    parts = [f"python {script}", f"output_model_name={model_name}"]
     for key, value in extras.items():
         parts.append(f"{key}={format_cli_value(value)}")
     return " ".join(parts), model_name

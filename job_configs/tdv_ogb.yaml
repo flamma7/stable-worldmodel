@@ -1,4 +1,5 @@
 name: tdv
+train_script: scripts/train/lewm_tdv.py
 default:
   all:
     region: us
@@ -32,11 +33,9 @@ param_map:
   dataset_name: data.dataset.name
   hf_repo: hf.repo_id
   batch_size: loader.batch_size
-  a: loss.visreg.alpha
+  a: loss.tdv.weight
+  lam: loss.sigreg.weight
   lr: optimizer.lr
-  lsh: loss.visreg.lam_shape
-  lce: loss.visreg.lam_center
-  lsc: loss.visreg.lam_scale
 job0:
   mode: mpc
   output_model_name: start22_a0.0_l0.1_lr5e-5
@@ -55,9 +54,13 @@ job2:
 job3:
   mode: mpc
   output_model_name: start22_a2.0_l0.1_lr5e-5
-  pod_id: nt7ejvw4qfq862
-  status: running
 job4:
   mode: mpc
   output_model_name: quentinll/lewm-cube
   is_hf_model: true
+job5:
+  mode: train
+  params:
+    a: 0.3
+    lam: 0.1
+    lr: 5.0e-05
