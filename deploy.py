@@ -15,6 +15,15 @@ import requests
 
 API = "https://rest.runpod.io/v1"
 
+REGION_GROUPS = {
+    "north america": ["US", "CA"],
+    "na": ["US", "CA"],
+    "europe": ["RO", "SE", "IS", "CZ", "NL", "FR", "NO", "DE", "GB", "PT"],
+    "eu": ["RO", "SE", "IS", "CZ", "NL", "FR", "NO", "DE", "GB", "PT"],
+    "asia": ["JP", "TW", "KR", "SG", "IN"],
+    "oceania": ["AU"],
+}
+
 REGIONS = {
     "canada": "CA",
     "ca": "CA",
@@ -55,6 +64,16 @@ def fetch_pod(headers, pod_id):
     return r.json(), None
 
 
+def terminate_pod(headers, pod_id):
+    r = requests.delete(f"{API}/pods/{pod_id}", headers=headers)
+    if r.status_code == 404:
+        return
+    if not r.ok:
+        print(f"  could not terminate {pod_id}: {r.status_code} {r.text}")
+        return
+    print(f"  terminated {pod_id}")
+
+
 def running_pod_id(headers, pod_id):
     if not pod_id:
         return None
@@ -81,14 +100,25 @@ def resolve_template(headers, name_or_id):
 
 
 def resolve_region(region):
-    region = region.lower()
+    """Return country-code list, or None for any region.
+
+    Accepts any / all / *, a group like 'all north america', a name like
+    canada, or a 2-letter ISO code.
+    """
+    region = " ".join(str(region).strip().lower().split())
+    if region in ("any", "all", "*", "any region"):
+        return None
+    if region.startswith("all "):
+        region = region[4:]
+    if region in REGION_GROUPS:
+        return list(REGION_GROUPS[region])
     if region in REGIONS:
-        return REGIONS[region]
+        return [REGIONS[region]]
     if len(region) == 2:
-        return region.upper()
+        return [region.upper()]
     raise ValueError(
         f"Unknown region '{region}'. "
-        "Use a supported region name or 2-letter country code."
+        "Use any, all north america, a country name, or a 2-letter ISO code."
     )
 
 
@@ -104,6 +134,17 @@ def format_name_value(value):
     return str(value)
 
 
+def resolve_cloud(cloud):
+    cloud = str(cloud).strip().lower()
+    if cloud in ("community", "community cloud"):
+        return "COMMUNITY"
+    if cloud in ("secure", "secure cloud"):
+        return "SECURE"
+    raise ValueError(
+        f"Unknown cloud '{cloud}'. Use community or secure."
+    )
+
+
 def launch_direct(
     name,
     gpu,
@@ -111,12 +152,14 @@ def launch_direct(
     template="my_template",
     gpu_count=1,
     region="us",
+    cloud="community",
     wait=60,
 ):
-    """Launch one Community Cloud pod. Returns the pod ID."""
+    """Launch one Runpod pod. Returns the pod ID."""
     headers = api_headers()
     template_obj = resolve_template(headers, template)
-    country_code = resolve_region(region)
+    country_codes = resolve_region(region)
+    cloud_type = resolve_cloud(cloud)
 
     env = dict(template_obj.get("env") or {})
     env.update({str(k): str(v) for k, v in extra_env.items()})
@@ -124,12 +167,13 @@ def launch_direct(
     payload = {
         "name": name,
         "templateId": template_obj["id"],
-        "cloudType": "COMMUNITY",
+        "cloudType": cloud_type,
         "gpuTypeIds": [gpu],
         "gpuCount": gpu_count,
-        "countryCodes": [country_code],
         "env": env,
     }
+    if country_codes:
+        payload["countryCodes"] = country_codes
 
     r = requests.post(f"{API}/pods", headers=headers, json=payload)
     if not r.ok:
@@ -141,9 +185,13 @@ def launch_direct(
     print(f"  Name:     {name}")
     print(f"  Template: {template_obj['name']} ({template_obj['id']})")
     print(f"  GPU:      {gpu} x{gpu_count}")
-    print(f"  Region:   {region} ({country_code})")
+    print(f"  Cloud:    {cloud_type}")
+    if country_codes:
+        print(f"  Region:   {region} ({', '.join(country_codes)})")
+    else:
+        print("  Region:   any")
     print(f"  Cost/hr:  ${pod.get('costPerHr', 'unknown')}")
-    for key in ("MODE", "HF_DATASET", "HF_DATASET_DIR", "CMD_0"):
+    for key in ("MODE", "HF_DATASET", "HF_DATASET_DIR", "DRY_RUN", "CMD_0"):
         if key in env:
             print(f"  {key}={env[key]}")
     print(f"  Waiting {wait}s to confirm the pod is still running...")
@@ -151,13 +199,14 @@ def launch_direct(
     time.sleep(wait)
     if running_pod_id(headers, pod_id):
         print("success")
-    else:
-        checked, error = fetch_pod(headers, pod_id)
-        status = error or (checked or {}).get("desiredStatus") or "unknown"
-        print("failure")
-        print(f"  Status:   {status}")
-        raise RuntimeError(f"pod {pod_id} is not running ({status})")
-    return pod_id
+        return pod_id
+
+    checked, error = fetch_pod(headers, pod_id)
+    status = error or (checked or {}).get("desiredStatus") or "unknown"
+    print("failure")
+    print(f"  Status:   {status}")
+    terminate_pod(headers, pod_id)
+    raise RuntimeError(f"pod {pod_id} is not running ({status})")
 
 
 def main():
@@ -177,7 +226,12 @@ def main():
     parser.add_argument(
         "--region",
         default="us",
-        help="Region/country name or ISO code (us, canada, portugal; default: us)",
+        help="Region: any, all north america, us, canada, or a 2-letter ISO code",
+    )
+    parser.add_argument(
+        "--cloud",
+        default="community",
+        help="Runpod cloud: community or secure (default: community)",
     )
     parser.add_argument(
         "--env",
@@ -207,6 +261,7 @@ def main():
         template=args.template,
         gpu_count=args.gpu_count,
         region=args.region,
+        cloud=args.cloud,
         wait=args.wait,
     )
 

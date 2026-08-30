@@ -2,13 +2,13 @@ eval_quentinll: false
 name: visreg
 default:
   all:
-    region: canada
+    region: all north america
+    cloud: secure
     data: ogb
     dataset_name: galilai-group/ogb_cube_single
     hf_repo: flamma77/lewm-base
-    hf_subdir: tdv
   train:
-    gpu: NVIDIA GeForce RTX 5090
+    gpu: NVIDIA GeForce RTX 4090
     wandb.enabled: true
     hf.enabled: true
     trainer.max_epochs: 10
@@ -32,14 +32,12 @@ param_map:
   data: data
   dataset_name: data.dataset.name
   hf_repo: hf.repo_id
-  hf_subdir: hf.path_prefix
   batch_size: loader.batch_size
   a: loss.visreg.alpha
   lr: optimizer.lr
   lsh: loss.visreg.lam_shape
   lce: loss.visreg.lam_center
   lsc: loss.visreg.lam_scale
-# Table #1 (a=0.01 inferred; screenshot starts at #2)
 job0:
   mode: train
   params:
@@ -48,8 +46,9 @@ job0:
     lce: 1.0
     lsh: 1.0
     lr: 5.0e-05
-
-# Table #2
+  pod_id: j4xlfajxqjytvg
+  status: running
+  output_model_name: visreg_a0.01_lsc1.0_lce1.0_lsh1.0_lr5e-5
 job1:
   mode: train
   params:
@@ -58,28 +57,22 @@ job1:
     lce: 1.0
     lsh: 1.0
     lr: 5.0e-05
-
-# Table #3
 job2:
   mode: train
   params:
-    a: 0.10
+    a: 0.1
     lsc: 1.0
     lce: 1.0
     lsh: 1.0
     lr: 5.0e-05
-
-# Table #4
 job3:
   mode: train
   params:
-    a: 0.30
+    a: 0.3
     lsc: 1.0
     lce: 1.0
     lsh: 1.0
     lr: 5.0e-05
-
-# Table #5 (already running)
 job4:
   mode: train
   params:
@@ -91,8 +84,6 @@ job4:
   pod_id: wilbdshpmk9v7w
   status: running
   output_model_name: visreg_a1.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
-
-# Table #6
 job5:
   mode: train
   params:
@@ -101,32 +92,26 @@ job5:
     lce: 1.0
     lsh: 1.0
     lr: 5.0e-05
-
-# Table #7
 job6:
   mode: train
   params:
-    a: 0.30
+    a: 0.3
     lsc: 0.5
     lce: 2.0
     lsh: 0.5
     lr: 5.0e-05
-
-# Table #8
 job7:
   mode: train
   params:
-    a: 0.30
+    a: 0.3
     lsc: 2.0
     lce: 0.5
     lsh: 0.5
     lr: 5.0e-05
-
 job8:
   mode: mpc
   output_model_name: start22_a1.0_l0.15_lr5e-5
   pod_id: mqwi3dfq665ao7
-
 job9:
   mode: plan
   output_model_name: start22_a1.0_l0.15_lr5e-5

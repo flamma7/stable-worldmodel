@@ -38,10 +38,12 @@ JOB_META = {
     "result_name",
     "output_model_name",
 }
-# Deploy/eval-only keys; do not pass these as hydra train overrides.
+DEPLOY_ATTEMPTS = 5
+DEPLOY_WAIT_S = 60
 TRAIN_SKIP_KEYS = {
     "gpu",
     "region",
+    "cloud",
     "num_eval",
     "eval_output_dir",
     "eval_output_hf",
@@ -77,6 +79,11 @@ def parse_args():
         "--dry-run",
         action="store_true",
         help="Print matched jobs and commands without executing",
+    )
+    parser.add_argument(
+        "--dry-run-container",
+        action="store_true",
+        help="Deploy the pod with DRY_RUN=1 so startup.sh skips install and waits",
     )
     return parser.parse_args()
 
@@ -226,20 +233,18 @@ def pick(mapped, cfg, key, default=None):
     return default
 
 
-def hf_subdir(cfg, mapped=None):
-    mapped = mapped or {}
-    return (
-        pick(mapped, cfg, "hf.path_prefix")
-        or pick(mapped, cfg, "hf_subdir")
-        or cfg.get("name")
-        or "visreg"
-    )
+def hf_prefix(cfg):
+    name = cfg.get("name")
+    if not name:
+        raise SystemExit("name is required (used as hf.path_prefix)")
+    return str(name)
 
 
 def build_train_cmd(cfg, job, mapped):
     model_name = infer_output_model_name(cfg, job, mapped)
     extras = {k: v for k, v in mapped.items() if k not in TRAIN_SKIP_KEYS}
     extras.pop("output_model_name", None)
+    extras["hf.path_prefix"] = hf_prefix(cfg)
 
     parts = [f"python {TRAIN_SCRIPT}", f"output_model_name={model_name}"]
     for key, value in extras.items():
@@ -266,7 +271,7 @@ def build_eval_cmd(cfg, job, mapped, mode):
         "--hf-repo",
         str(repo),
         "--hf-subdir",
-        str(hf_subdir(cfg, mapped)),
+        hf_prefix(cfg),
         "--eval-output-dir",
         str(pick(mapped, cfg, "eval_output_dir", "data")),
         "--dataset",
@@ -300,6 +305,7 @@ def build_job(cfg, job, local=False):
         "cmd": cmd,
         "gpu": gpu,
         "region": mapped.get("region") or "us",
+        "cloud": mapped.get("cloud") or "community",
         "model_name": model_name,
         "mapped": mapped,
         "dataset": dataset_from_mapped(mapped),
@@ -321,7 +327,10 @@ def print_plan(matched, skipped, to_run, local):
     dest = "locally" if local else "via deploy.py"
     print(f"Will run {len(to_run)} job(s) {dest}:")
     for key, spec in to_run:
-        print(f"  {key}  mode={spec['mode']}  gpu={spec['gpu']}  region={spec['region']}")
+        print(
+            f"  {key}  mode={spec['mode']}  gpu={spec['gpu']}  "
+            f"cloud={spec['cloud']}  region={spec['region']}"
+        )
         print(f"    {spec['cmd']}")
 
 
@@ -329,7 +338,7 @@ def dataset_dir(dataset):
     return dataset.rsplit("/", 1)[-1]
 
 
-def deploy_job(key, spec):
+def deploy_job(key, spec, dry_run_container=False):
     env = {
         "MODE": spec["install_mode"],
         "HF_DATASET": spec["dataset"],
@@ -337,12 +346,33 @@ def deploy_job(key, spec):
         "CMD_0": spec["cmd"],
         "OUTPUT_MODEL_NAME": spec["model_name"],
     }
-    print(f"{key}: deploying {spec['model_name']} on {spec['gpu']} ({spec['region']})")
-    return deploy_mod.launch_direct(
-        name=spec["model_name"],
-        gpu=spec["gpu"],
-        extra_env=env,
-        region=spec["region"],
+    if dry_run_container:
+        env["DRY_RUN"] = "1"
+    print(
+        f"{key}: deploying {spec['model_name']} on {spec['gpu']} "
+        f"({spec['cloud']}, {spec['region']})"
+    )
+    if dry_run_container:
+        print("  DRY_RUN=1 (container will skip install and wait)")
+    last_error = None
+    for attempt in range(1, DEPLOY_ATTEMPTS + 1):
+        print(f"{key}: deploy attempt {attempt}/{DEPLOY_ATTEMPTS}")
+        try:
+            return deploy_mod.launch_direct(
+                name=spec["model_name"],
+                gpu=spec["gpu"],
+                extra_env=env,
+                region=spec["region"],
+                cloud=spec["cloud"],
+                wait=DEPLOY_WAIT_S,
+            )
+        except RuntimeError as exc:
+            last_error = exc
+            print(f"{key}: attempt {attempt} failed: {exc}")
+            if attempt < DEPLOY_ATTEMPTS:
+                print(f"{key}: retrying (install/pod died within {DEPLOY_WAIT_S}s)")
+    raise RuntimeError(
+        f"{key}: deploy failed after {DEPLOY_ATTEMPTS} attempts: {last_error}"
     )
 
 
@@ -385,7 +415,7 @@ def main():
             job["status"] = "completed"
             job["output_model_name"] = spec["model_name"]
         else:
-            pod_id = deploy_job(key, spec)
+            pod_id = deploy_job(key, spec, dry_run_container=args.dry_run_container)
             job["pod_id"] = pod_id
             job["status"] = "running"
             job["output_model_name"] = spec["model_name"]
