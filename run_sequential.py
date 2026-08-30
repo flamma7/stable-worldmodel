@@ -5,8 +5,7 @@ Invoked by controller.py, e.g.
 
     python run_sequential.py mpc visreg_a1.0_lr5e-5_lam0.1 42 50 \\
         --batch-size 50 --hf-repo flamma77/lewm-base --hf-subdir visreg \\
-        --eval-output-dir data --dataset galilai-group/ogb_cube_single \\
-        --eval-output-hf --no-eval-quentinll
+        --eval-output-dir data --dataset galilai-group/ogb_cube_single
 """
 
 import argparse
@@ -31,17 +30,12 @@ def parse_args():
     parser.add_argument("--hf-repo", default="flamma77/lewm-base")
     parser.add_argument("--hf-subdir", required=True)
     parser.add_argument("--eval-output-dir", default="data")
-    parser.add_argument(
-        "--eval-output-hf",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-    )
-    parser.add_argument(
-        "--eval-quentinll",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-    )
     parser.add_argument("--dataset", default=DEFAULT_DATASET)
+    parser.add_argument(
+        "--is-hf-model",
+        action="store_true",
+        help="Treat model_name as a HuggingFace repo id (skip checkpoint download)",
+    )
     return parser.parse_args()
 
 
@@ -192,39 +186,28 @@ def main():
         parents=True, exist_ok=True
     )
 
-    print(f"Downloading {repo}/{subdir}/{name}")
-    pt = ensure_checkpoint(repo, subdir, name, ckpt_root)
+    if args.is_hf_model:
+        print(f"Using HuggingFace policy {name}")
+        policy = name
+    else:
+        print(f"Downloading {repo}/{subdir}/{name}")
+        policy = ensure_checkpoint(repo, subdir, name, ckpt_root)
 
-    if args.eval_output_hf:
-        ensure_hf_eval_dir(repo, subdir, output_dir)
+    ensure_hf_eval_dir(repo, subdir, output_dir)
 
     suffix = "plan" if args.mode == "plan" else "icem"
+    eval_name = f"{name.replace('/', '-')}_{suffix}_{args.seed}"
     npz = run_eval(
         args.mode,
-        pt,
-        f"{name}_{suffix}_{args.seed}",
+        policy,
+        eval_name,
         args.seed,
         args.num_eval,
         args.batch_size,
         output_dir,
         args.dataset,
     )
-    if args.eval_output_hf:
-        push_eval_npzs(repo, subdir, output_dir, [npz])
-
-    if args.eval_quentinll:
-        npz = run_eval(
-            args.mode,
-            "quentinll/lewm-cube",
-            f"quentinll_{suffix}_cube_{args.seed}",
-            args.seed,
-            args.num_eval,
-            args.batch_size,
-            output_dir,
-            args.dataset,
-        )
-        if args.eval_output_hf:
-            push_eval_npzs(repo, subdir, output_dir, [npz])
+    push_eval_npzs(repo, subdir, output_dir, [npz])
 
 
 if __name__ == "__main__":

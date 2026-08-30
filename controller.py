@@ -40,6 +40,7 @@ JOB_META = {
     "completed",
     "result_name",
     "output_model_name",
+    "is_hf_model",
 }
 DEPLOY_ATTEMPTS = 5
 DEPLOY_WAIT_S = 60
@@ -51,6 +52,7 @@ TRAIN_SKIP_KEYS = {
     "eval_output_dir",
     "eval_output_hf",
     "eval_quentinll",
+    "save_video",
 }
 
 
@@ -313,14 +315,8 @@ def build_eval_cmd(cfg, job, mapped, mode):
         "--dataset",
         str(dataset_from_mapped(mapped)),
     ]
-    if pick(mapped, cfg, "eval_output_hf"):
-        parts.append("--eval-output-hf")
-    else:
-        parts.append("--no-eval-output-hf")
-    if pick(mapped, cfg, "eval_quentinll"):
-        parts.append("--eval-quentinll")
-    else:
-        parts.append("--no-eval-quentinll")
+    if job.get("is_hf_model"):
+        parts.append("--is-hf-model")
     return " ".join(parts), model_name
 
 
@@ -384,8 +380,9 @@ def deploy_job(key, spec, dry_run_container=False):
     }
     if dry_run_container:
         env["DRY_RUN"] = "1"
+    pod_name = f"{spec['model_name']}_{spec['mode']}".replace("/", "-")
     print(
-        f"{key}: deploying {spec['model_name']} on {spec['gpu']} "
+        f"{key}: deploying {pod_name} on {spec['gpu']} "
         f"({spec['cloud']}, {spec['region']})"
     )
     if dry_run_container:
@@ -395,7 +392,7 @@ def deploy_job(key, spec, dry_run_container=False):
         print(f"{key}: deploy attempt {attempt}/{DEPLOY_ATTEMPTS}")
         try:
             return deploy_mod.launch_direct(
-                name=spec["model_name"],
+                name=pod_name,
                 gpu=spec["gpu"],
                 extra_env=env,
                 region=spec["region"],

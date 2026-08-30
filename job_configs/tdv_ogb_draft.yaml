@@ -1,0 +1,57 @@
+name: tdv
+default:
+  all:
+    region: us
+    cloud: community
+    data: ogb
+    dataset_name: galilai-group/ogb_cube_single
+    hf_repo: flamma77/lewm-base
+  train:
+    gpu: NVIDIA GeForce RTX 5090
+    wandb.enabled: true
+    hf.enabled: true
+    trainer.max_epochs: 10
+    num_workers: 6
+    batch_size: 128
+  mpc:
+    gpu: NVIDIA RTX 4000 Ada Generation
+    seed: 7
+    num_eval: 2000
+    batch_size: 150
+    eval_output_dir: data
+    eval_output_hf: true
+  plan:
+    gpu: NVIDIA RTX 4000 Ada Generation
+    seed: 42
+    num_eval: 50
+    batch_size: 50
+    eval_output_dir: data
+    eval_output_hf: true
+param_map:
+  data: data
+  dataset_name: data.dataset.name
+  hf_repo: hf.repo_id
+  batch_size: loader.batch_size
+  a: loss.visreg.alpha
+  lr: optimizer.lr
+  lsh: loss.visreg.lam_shape
+  lce: loss.visreg.lam_center
+  lsc: loss.visreg.lam_scale
+job0:
+  mode: mpc
+  output_model_name: start22_a0.0_l0.1_lr5e-5
+  pod_id: ad5e872en185jl
+  status: running
+job1:
+  mode: mpc
+  output_model_name: start22_a1.0_l0.15_lr5e-5
+job2:
+  mode: mpc
+  output_model_name: start22_a1.0_l0.2_lr5e-5
+job3:
+  mode: mpc
+  output_model_name: start22_a2.0_l0.1_lr5e-5
+job4:
+  mode: mpc
+  output_model_name: quentinll/lewm-cube
+  is_hf_model: true

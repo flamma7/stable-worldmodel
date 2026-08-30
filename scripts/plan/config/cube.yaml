@@ -41,7 +41,7 @@ eval:
   eval_budget: 50
   img_size: 224
   dataset_name: ogbench/cube_single_expert.h5
-  save_video: true  # set false to skip env_*.mp4 writes
+  save_video: false  # set true to write env_*.mp4 per env
   callables:
     # -- set state
     - method: set_state

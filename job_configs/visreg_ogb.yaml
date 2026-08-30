@@ -46,6 +46,9 @@ job0:
     lce: 1.0
     lsh: 1.0
     lr: 5.0e-05
+  pod_id: 17dxbl1v9psekl
+  status: running
+  output_model_name: visreg_a0.01_lsc1.0_lce1.0_lsh1.0_lr5e-5
 job1:
   mode: train
   params:
@@ -54,6 +57,9 @@ job1:
     lce: 1.0
     lsh: 1.0
     lr: 5.0e-05
+  pod_id: 3itga4oiwxufgk
+  status: running
+  output_model_name: visreg_a0.03_lsc1.0_lce1.0_lsh1.0_lr5e-5
 job2:
   mode: train
   params:
@@ -62,6 +68,9 @@ job2:
     lce: 1.0
     lsh: 1.0
     lr: 5.0e-05
+  pod_id: b19rfng3jaelwa
+  status: running
+  output_model_name: visreg_a0.1_lsc1.0_lce1.0_lsh1.0_lr5e-5
 job3:
   mode: train
   params:
@@ -70,6 +79,9 @@ job3:
     lce: 1.0
     lsh: 1.0
     lr: 5.0e-05
+  pod_id: wi4h591fpqi3l1
+  status: running
+  output_model_name: visreg_a0.3_lsc1.0_lce1.0_lsh1.0_lr5e-5
 job4:
   mode: train
   params:
@@ -78,6 +90,9 @@ job4:
     lce: 1.0
     lsh: 1.0
     lr: 5.0e-05
+  pod_id: vl07q5ljz4y393
+  status: running
+  output_model_name: visreg_a1.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
 job5:
   mode: train
   params:
@@ -86,6 +101,9 @@ job5:
     lce: 1.0
     lsh: 1.0
     lr: 5.0e-05
+  pod_id: pza3z4bzeq7csw
+  status: running
+  output_model_name: visreg_a3.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
 job6:
   mode: train
   params:
@@ -94,6 +112,9 @@ job6:
     lce: 2.0
     lsh: 0.5
     lr: 5.0e-05
+  pod_id: 5vq8t8qq6w0od0
+  status: running
+  output_model_name: visreg_a0.3_lsc0.5_lce2.0_lsh0.5_lr5e-5
 job7:
   mode: train
   params:
@@ -102,11 +123,69 @@ job7:
     lce: 0.5
     lsh: 0.5
     lr: 5.0e-05
+  pod_id: v1qx6asd0gty2u
+  status: running
+  output_model_name: visreg_a0.3_lsc2.0_lce0.5_lsh0.5_lr5e-5
 job8:
+  mode: train
+  params:
+    a: 0.3
+    lsc: 0.5
+    lce: 0.5
+    lsh: 2.0
+    lr: 5.0e-05
+  pod_id: nsr9f5a7fixjaz
+  status: running
+  output_model_name: visreg_a0.3_lsc0.5_lce0.5_lsh2.0_lr5e-5
+job9:
+  mode: train
+  params:
+    a: 0.3
+    lsc: 2.0
+    lce: 0.5
+    lsh: 0.5
+    lr: 5.0e-05
+  pod_id: s9qsubj1i60nxb
+  status: running
+  output_model_name: visreg_a0.3_lsc2.0_lce0.5_lsh0.5_lr5e-5
+job10:
+  mode: train
+  params:
+    a: 4.0
+    lsc: 1.0
+    lce: 1.0
+    lsh: 1.0
+    lr: 5.0e-05
+  pod_id: 2svn44srfqs9u9
+  status: running
+  output_model_name: visreg_a4.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
+job11:
+  mode: train
+  params:
+    a: 1.0
+    lsc: 0.75
+    lce: 0.75
+    lsh: 1.25
+    lr: 5.0e-05
+  pod_id: o4fakhljycklng
+  status: running
+  output_model_name: visreg_a1.0_lsc0.75_lce0.75_lsh1.25_lr5e-5
+job12:
+  mode: train
+  params:
+    a: 1.0
+    lsc: 0.5
+    lce: 0.5
+    lsh: 2.0
+    lr: 5.0e-05
+  pod_id: t7koon5s3fmdbw
+  status: running
+  output_model_name: visreg_a1.0_lsc0.5_lce0.5_lsh2.0_lr5e-5
+job20:
   mode: mpc
   output_model_name: start22_a1.0_l0.15_lr5e-5
   pod_id: mqwi3dfq665ao7
-job9:
+job21:
   mode: plan
   output_model_name: start22_a1.0_l0.15_lr5e-5
   pod_id: mqwi3dfq665ao7
