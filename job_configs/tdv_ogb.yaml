@@ -17,7 +17,7 @@ default:
     gpu: NVIDIA RTX 4000 Ada Generation
     seed: 7
     num_eval: 2000
-    batch_size: 150
+    batch_size: 100
     eval_output_dir: data
     eval_output_hf: true
   plan:
@@ -40,17 +40,23 @@ param_map:
 job0:
   mode: mpc
   output_model_name: start22_a0.0_l0.1_lr5e-5
-  pod_id: ad5e872en185jl
+  pod_id: dkiilihfi7bir1
   status: running
 job1:
   mode: mpc
   output_model_name: start22_a1.0_l0.15_lr5e-5
+  pod_id: fsgpe4f16xnd0c
+  status: running
 job2:
   mode: mpc
   output_model_name: start22_a1.0_l0.2_lr5e-5
+  pod_id: nkmgr7o2uok4ef
+  status: running
 job3:
   mode: mpc
   output_model_name: start22_a2.0_l0.1_lr5e-5
+  pod_id: nt7ejvw4qfq862
+  status: running
 job4:
   mode: mpc
   output_model_name: quentinll/lewm-cube

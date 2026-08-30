@@ -2,7 +2,7 @@ eval_quentinll: false
 name: visreg
 default:
   all:
-    region: canada
+    region: us
     cloud: community
     data: ogb
     dataset_name: galilai-group/ogb_cube_single
@@ -16,9 +16,16 @@ default:
     batch_size: 128
   mpc:
     gpu: NVIDIA RTX 4000 Ada Generation
-    seed: 42
-    num_eval: 50
-    batch_size: 50
+    gpu_options:
+      - NVIDIA GeForce RTX 4090
+      - NVIDIA RTX 4000 SFF Ada Generation
+      - NVIDIA RTX 4000 Ada Generation
+      - NVIDIA GeForce RTX 5090
+      - NVIDIA GeForce RTX 3070
+      - NVIDIA RTX A4000
+    seed: 7
+    num_eval: 2000
+    batch_size: 100
     eval_output_dir: data
     eval_output_hf: true
   plan:
@@ -181,11 +188,33 @@ job12:
   pod_id: t7koon5s3fmdbw
   status: running
   output_model_name: visreg_a1.0_lsc0.5_lce0.5_lsh2.0_lr5e-5
-job20:
+job13:
   mode: mpc
-  output_model_name: start22_a1.0_l0.15_lr5e-5
-  pod_id: mqwi3dfq665ao7
-job21:
-  mode: plan
-  output_model_name: start22_a1.0_l0.15_lr5e-5
-  pod_id: mqwi3dfq665ao7
+  output_model_name: visreg_a0.3_lsc1.0_lce1.0_lsh1.0_lr5e-5
+  pod_id: 2d3zyw50faupna
+  status: running
+job14:
+  mode: mpc
+  output_model_name: visreg_a1.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
+  pod_id: bu19h8sfosc3su
+  status: running
+job15:
+  mode: mpc
+  output_model_name: visreg_a3.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
+  pod_id: bfhg1yjj8ipyhb
+  status: running
+job16:
+  mode: mpc
+  output_model_name: visreg_a0.3_lsc2.0_lce0.5_lsh0.5_lr5e-5
+  pod_id: bgff5foh3x5835
+  status: running
+job17:
+  mode: mpc
+  output_model_name: visreg_a4.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
+  pod_id: oh4u0dr064ii7o
+  status: running
+job18:
+  mode: mpc
+  output_model_name: visreg_a1.0_lsc0.75_lce0.75_lsh1.25_lr5e-5
+  pod_id: ibivjyz7w0k1na
+  status: running
