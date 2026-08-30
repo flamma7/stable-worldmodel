@@ -1,0 +1,63 @@
+eval_quentinll: false
+name: visreg
+
+default:
+  all:
+    data: ogb
+    dataset_name: galilai-group/ogb_cube_single
+    hf_repo: flamma77/lewm-base
+    hf_subdir: tdv
+  train:
+    gpu: NVIDIA GeForce RTX 5090
+    wandb.enabled: true
+    hf.enabled: true
+    trainer.max_epochs: 10
+    num_workers: 6
+    batch_size: 128
+  mpc:
+    gpu: NVIDIA RTX 4000 Ada Generation
+    seed: 42
+    num_eval: 50
+    batch_size: 50
+    eval_output_dir: data
+    eval_output_hf: true
+  plan:
+    gpu: NVIDIA RTX 4000 Ada Generation
+    seed: 42
+    num_eval: 50
+    batch_size: 150
+    eval_output_dir: data
+    eval_output_hf: true
+
+param_map:
+  data: data
+  dataset_name: data.dataset.name
+  hf_repo: hf.repo_id
+  hf_subdir: hf.path_prefix
+  batch_size: loader.batch_size
+  a: loss.visreg.alpha
+  lr: optimizer.lr
+  lsh: loss.visreg.lam_shape
+  lce: loss.visreg.lam_center
+  lsc: loss.visreg.lam_scale
+
+job0:
+  mode: train
+  params:
+    a: 1.0    
+    lsc: 1.0
+    lce: 1.0
+    lsh: 1.0
+    lr: 5.0e-05
+
+job1:
+  mode: train
+  params:
+    a: 1.0
+    lr: 5.0e-05
+    lam: 0.1
+
+job2:
+  mode: mpc
+  output_model_name: start22_a1.0_l0.15_lr5e-5
+  pod_id: mqwi3dfq665ao7

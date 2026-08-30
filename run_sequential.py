@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Sequential cube eval from tester.yaml checkpoints.
+"""Evaluate one HF checkpoint with cube mpc or plan.
 
-    python run_sequential.py
-    python run_sequential.py mpc 123 500
-    python run_sequential.py plan 123 500 tester.yaml
-    python run_sequential.py mpc 42 50 tester.yaml --batch-size 8
+Invoked by controller.py, e.g.
+
+    python run_sequential.py mpc visreg_a1.0_lr5e-5_lam0.1 42 50 \\
+        --batch-size 50 --hf-repo flamma77/lewm-base --hf-subdir visreg \\
+        --eval-output-dir data --dataset galilai-group/ogb_cube_single \\
+        --eval-output-hf --no-eval-quentinll
 """
 
 import argparse
@@ -14,27 +16,33 @@ import subprocess
 import sys
 from pathlib import Path
 
-import yaml
-
 HERE = Path(__file__).resolve().parent
 EPOCH_RE = re.compile(r"^weights_epoch_(\d+)\.pt$")
-DATASET = "galilai-group/ogb_cube_single"
+DEFAULT_DATASET = "galilai-group/ogb_cube_single"
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", nargs="?", default="mpc", choices=("mpc", "plan"))
+    parser.add_argument("mode", choices=("mpc", "plan"))
+    parser.add_argument("model_name", help="HF folder / output_model_name to download")
     parser.add_argument("seed", nargs="?", type=int, default=42)
     parser.add_argument("num_eval", nargs="?", type=int, default=50)
-    parser.add_argument("yaml", nargs="?", default=str(HERE / "tester.yaml"))
     parser.add_argument("--batch-size", type=int, default=50)
+    parser.add_argument("--hf-repo", default="flamma77/lewm-base")
+    parser.add_argument("--hf-subdir", required=True)
+    parser.add_argument("--eval-output-dir", default="data")
+    parser.add_argument(
+        "--eval-output-hf",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument(
+        "--eval-quentinll",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument("--dataset", default=DEFAULT_DATASET)
     return parser.parse_args()
-
-
-def load_yaml(path):
-    cfg = yaml.safe_load(Path(path).read_text())
-    names = [a["output_model_name"] for a in cfg["ablations"]]
-    return cfg, names
 
 
 def npz_path_for(mode, eval_name, output_dir):
@@ -90,13 +98,13 @@ def ensure_checkpoint(repo, subdir, name, ckpt_root):
     return dest / f"weights_epoch_{epoch}.pt"
 
 
-def run_eval(mode, policy, eval_name, seed, num_eval, batch_size, output_dir):
+def run_eval(mode, policy, eval_name, seed, num_eval, batch_size, output_dir, dataset):
     if mode == "plan":
         cmd = [
             sys.executable,
             str(HERE / "scripts/plan/eval_wm_cube_plan.py"),
             f"policy={policy}",
-            f"eval.dataset_name={DATASET}",
+            f"eval.dataset_name={dataset}",
             f"seed={seed}",
             f"eval.name={eval_name}",
             f"eval.num_eval={num_eval}",
@@ -111,7 +119,7 @@ def run_eval(mode, policy, eval_name, seed, num_eval, batch_size, output_dir):
             sys.executable,
             str(HERE / "scripts/plan/eval_wm_cube_mpc.py"),
             f"policy={policy}",
-            f"eval.dataset_name={DATASET}",
+            f"eval.dataset_name={dataset}",
             f"seed={seed}",
             f"eval.name={eval_name}",
             f"eval.num_eval={num_eval}",
@@ -173,16 +181,10 @@ def push_eval_npzs(repo, subdir, output_dir, npz_paths):
 
 def main():
     args = parse_args()
-    yaml_path = Path(args.yaml)
-    if not yaml_path.is_file():
-        raise SystemExit(f"yaml not found: {yaml_path}")
-
-    cfg, models = load_yaml(yaml_path)
-    repo = cfg["hf_repo"]
-    subdir = cfg["hf_subdir"]
-    output_dir = cfg.get("eval_output_dir", "data")
-    eval_output_hf = bool(cfg.get("eval_output_hf", False))
-    eval_quentinll = bool(cfg.get("eval_quentinll", False))
+    repo = args.hf_repo
+    subdir = args.hf_subdir
+    output_dir = args.eval_output_dir
+    name = args.model_name
     if "STABLEWM_HOME" not in os.environ:
         raise SystemExit("STABLEWM_HOME is required")
     ckpt_root = Path(os.environ["STABLEWM_HOME"]) / "checkpoints"
@@ -190,30 +192,27 @@ def main():
         parents=True, exist_ok=True
     )
 
-    print(f"Checking {len(models)} model(s) from {yaml_path}")
-    pts = []
-    for name in models:
-        print(f"  {subdir}/{name}")
-        pts.append(ensure_checkpoint(repo, subdir, name, ckpt_root))
+    print(f"Downloading {repo}/{subdir}/{name}")
+    pt = ensure_checkpoint(repo, subdir, name, ckpt_root)
 
-    if eval_output_hf:
+    if args.eval_output_hf:
         ensure_hf_eval_dir(repo, subdir, output_dir)
 
     suffix = "plan" if args.mode == "plan" else "icem"
-    for name, pt in zip(models, pts):
-        npz = run_eval(
-            args.mode,
-            pt,
-            f"{name}_{suffix}_{args.seed}",
-            args.seed,
-            args.num_eval,
-            args.batch_size,
-            output_dir,
-        )
-        if eval_output_hf:
-            push_eval_npzs(repo, subdir, output_dir, [npz])
+    npz = run_eval(
+        args.mode,
+        pt,
+        f"{name}_{suffix}_{args.seed}",
+        args.seed,
+        args.num_eval,
+        args.batch_size,
+        output_dir,
+        args.dataset,
+    )
+    if args.eval_output_hf:
+        push_eval_npzs(repo, subdir, output_dir, [npz])
 
-    if eval_quentinll:
+    if args.eval_quentinll:
         npz = run_eval(
             args.mode,
             "quentinll/lewm-cube",
@@ -222,8 +221,9 @@ def main():
             args.num_eval,
             args.batch_size,
             output_dir,
+            args.dataset,
         )
-        if eval_output_hf:
+        if args.eval_output_hf:
             push_eval_npzs(repo, subdir, output_dir, [npz])
 
 
