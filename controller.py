@@ -335,7 +335,7 @@ def print_plan(matched, skipped, to_run, local):
 
 
 def dataset_dir(dataset):
-    return dataset.rsplit("/", 1)[-1]
+    return str(dataset).replace("/", "--")
 
 
 def deploy_job(key, spec, dry_run_container=False):

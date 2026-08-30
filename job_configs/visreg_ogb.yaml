@@ -2,13 +2,13 @@ eval_quentinll: false
 name: visreg
 default:
   all:
-    region: all north america
-    cloud: secure
+    region: canada
+    cloud: community
     data: ogb
     dataset_name: galilai-group/ogb_cube_single
     hf_repo: flamma77/lewm-base
   train:
-    gpu: NVIDIA GeForce RTX 4090
+    gpu: NVIDIA GeForce RTX 5090
     wandb.enabled: true
     hf.enabled: true
     trainer.max_epochs: 10
@@ -46,9 +46,6 @@ job0:
     lce: 1.0
     lsh: 1.0
     lr: 5.0e-05
-  pod_id: j4xlfajxqjytvg
-  status: running
-  output_model_name: visreg_a0.01_lsc1.0_lce1.0_lsh1.0_lr5e-5
 job1:
   mode: train
   params:
@@ -81,9 +78,6 @@ job4:
     lce: 1.0
     lsh: 1.0
     lr: 5.0e-05
-  pod_id: wilbdshpmk9v7w
-  status: running
-  output_model_name: visreg_a1.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
 job5:
   mode: train
   params:
