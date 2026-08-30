@@ -41,6 +41,7 @@ JOB_META = {
 # Deploy/eval-only keys; do not pass these as hydra train overrides.
 TRAIN_SKIP_KEYS = {
     "gpu",
+    "region",
     "num_eval",
     "eval_output_dir",
     "eval_output_hf",
@@ -298,6 +299,7 @@ def build_job(cfg, job, local=False):
         "install_mode": install_mode,
         "cmd": cmd,
         "gpu": gpu,
+        "region": mapped.get("region") or "us",
         "model_name": model_name,
         "mapped": mapped,
         "dataset": dataset_from_mapped(mapped),
@@ -319,7 +321,7 @@ def print_plan(matched, skipped, to_run, local):
     dest = "locally" if local else "via deploy.py"
     print(f"Will run {len(to_run)} job(s) {dest}:")
     for key, spec in to_run:
-        print(f"  {key}  mode={spec['mode']}  gpu={spec['gpu']}")
+        print(f"  {key}  mode={spec['mode']}  gpu={spec['gpu']}  region={spec['region']}")
         print(f"    {spec['cmd']}")
 
 
@@ -335,11 +337,12 @@ def deploy_job(key, spec):
         "CMD_0": spec["cmd"],
         "OUTPUT_MODEL_NAME": spec["model_name"],
     }
-    print(f"{key}: deploying {spec['model_name']} on {spec['gpu']}")
+    print(f"{key}: deploying {spec['model_name']} on {spec['gpu']} ({spec['region']})")
     return deploy_mod.launch_direct(
         name=spec["model_name"],
         gpu=spec["gpu"],
         extra_env=env,
+        region=spec["region"],
     )
 
 

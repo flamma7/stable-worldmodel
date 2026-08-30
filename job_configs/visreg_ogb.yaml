@@ -1,8 +1,8 @@
 eval_quentinll: false
 name: visreg
-
 default:
   all:
+    region: canada
     data: ogb
     dataset_name: galilai-group/ogb_cube_single
     hf_repo: flamma77/lewm-base
@@ -25,10 +25,9 @@ default:
     gpu: NVIDIA RTX 4000 Ada Generation
     seed: 42
     num_eval: 50
-    batch_size: 150
+    batch_size: 50
     eval_output_dir: data
     eval_output_hf: true
-
 param_map:
   data: data
   dataset_name: data.dataset.name
@@ -40,24 +39,95 @@ param_map:
   lsh: loss.visreg.lam_shape
   lce: loss.visreg.lam_center
   lsc: loss.visreg.lam_scale
-
+# Table #1 (a=0.01 inferred; screenshot starts at #2)
 job0:
   mode: train
   params:
-    a: 1.0    
+    a: 0.01
     lsc: 1.0
     lce: 1.0
     lsh: 1.0
     lr: 5.0e-05
 
+# Table #2
 job1:
   mode: train
   params:
-    a: 1.0
+    a: 0.03
+    lsc: 1.0
+    lce: 1.0
+    lsh: 1.0
     lr: 5.0e-05
-    lam: 0.1
 
+# Table #3
 job2:
+  mode: train
+  params:
+    a: 0.10
+    lsc: 1.0
+    lce: 1.0
+    lsh: 1.0
+    lr: 5.0e-05
+
+# Table #4
+job3:
+  mode: train
+  params:
+    a: 0.30
+    lsc: 1.0
+    lce: 1.0
+    lsh: 1.0
+    lr: 5.0e-05
+
+# Table #5 (already running)
+job4:
+  mode: train
+  params:
+    a: 1.0
+    lsc: 1.0
+    lce: 1.0
+    lsh: 1.0
+    lr: 5.0e-05
+  pod_id: wilbdshpmk9v7w
+  status: running
+  output_model_name: visreg_a1.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
+
+# Table #6
+job5:
+  mode: train
+  params:
+    a: 3.0
+    lsc: 1.0
+    lce: 1.0
+    lsh: 1.0
+    lr: 5.0e-05
+
+# Table #7
+job6:
+  mode: train
+  params:
+    a: 0.30
+    lsc: 0.5
+    lce: 2.0
+    lsh: 0.5
+    lr: 5.0e-05
+
+# Table #8
+job7:
+  mode: train
+  params:
+    a: 0.30
+    lsc: 2.0
+    lce: 0.5
+    lsh: 0.5
+    lr: 5.0e-05
+
+job8:
   mode: mpc
+  output_model_name: start22_a1.0_l0.15_lr5e-5
+  pod_id: mqwi3dfq665ao7
+
+job9:
+  mode: plan
   output_model_name: start22_a1.0_l0.15_lr5e-5
   pod_id: mqwi3dfq665ao7

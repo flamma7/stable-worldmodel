@@ -31,6 +31,10 @@ REGIONS = {
     "se": "SE",
     "norway": "NO",
     "no": "NO",
+    "portugal": "PT",
+    "pt": "PT",
+    "taiwan": "TW",
+    "tw": "TW",
 }
 
 
@@ -106,7 +110,7 @@ def launch_direct(
     extra_env,
     template="my_template",
     gpu_count=1,
-    region="canada",
+    region="us",
     wait=60,
 ):
     """Launch one Community Cloud pod. Returns the pod ID."""
@@ -172,8 +176,8 @@ def main():
     )
     parser.add_argument(
         "--region",
-        default="canada",
-        help="Region/country name or ISO code (default: canada)",
+        default="us",
+        help="Region/country name or ISO code (us, canada, portugal; default: us)",
     )
     parser.add_argument(
         "--env",
