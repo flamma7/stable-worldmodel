@@ -334,7 +334,7 @@ def run(cfg: DictConfig):
 
     world.set_policy(policy)
 
-    save_video = bool(cfg.eval.get('save_video', True))
+    save_video = bool(cfg.eval.get('save_video', False))
     results_path.mkdir(parents=True, exist_ok=True)
     if save_video:
         print(
