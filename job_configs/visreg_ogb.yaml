@@ -2,13 +2,15 @@ name: visreg
 train_script: scripts/train/lewm_visreg.py
 default:
   all:
-    region: us
+    region: ca
     cloud: community
     data: ogb
     dataset_name: galilai-group/ogb_cube_single
     hf_repo: flamma77/lewm-base
+    hf_prefix: visreg
   train:
     gpu: NVIDIA GeForce RTX 5090
+    wandb_project: lewm-visreg
     wandb.enabled: true
     hf.enabled: true
     trainer.max_epochs: 10
@@ -25,20 +27,23 @@ default:
       - NVIDIA RTX A4000
     seed: 7
     num_eval: 2000
-    batch_size: 100
+    batch_size: 50
     eval_output_dir: data
     eval_output_hf: true
   plan:
     gpu: NVIDIA RTX 4000 Ada Generation
     seed: 42
-    num_eval: 50
+    num_eval: 200
     batch_size: 50
+    num_candidates: 64
     eval_output_dir: data
     eval_output_hf: true
 param_map:
   data: data
   dataset_name: data.dataset.name
   hf_repo: hf.repo_id
+  wandb_project: wandb.config.project
+  hf_prefix: hf.path_prefix
   batch_size: loader.batch_size
   a: loss.visreg.alpha
   lr: optimizer.lr
@@ -218,3 +223,61 @@ job18:
   output_model_name: visreg_a1.0_lsc0.75_lce0.75_lsh1.25_lr5e-5
   pod_id: ibivjyz7w0k1na
   status: running
+job19:
+  mode: train
+  params:
+    a: 6.0
+    lsc: 1.0
+    lce: 1.0
+    lsh: 1.0
+    lr: 5.0e-05
+  pod_id: dgwzdoh8wvo4t4
+  status: running
+  output_model_name: visreg_a6.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
+job20:
+  mode: train
+  params:
+    a: 8.0
+    lsc: 1.0
+    lce: 1.0
+    lsh: 1.0
+    lr: 5.0e-05
+  pod_id: b7fgqwu2cm27pe
+  status: running
+  output_model_name: visreg_a8.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
+job21:
+  mode: train
+  params:
+    a: 12.0
+    lsc: 1.0
+    lce: 1.0
+    lsh: 1.0
+    lr: 5.0e-05
+  pod_id: 2oyyijqtgembzj
+  status: running
+  output_model_name: visreg_a12.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
+job22:
+  mode: train
+  params:
+    a: 16.0
+    lsc: 1.0
+    lce: 1.0
+    lsh: 1.0
+    lr: 5.0e-05
+job23:
+  mode: plan
+  output_model_name: visreg_a4.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
+  status: completed
+job24:
+  mode: mpc
+  output_model_name: visreg_a6.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
+  status: completed
+job25:
+  mode: mpc
+  output_model_name: visreg_a8.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
+job26:
+  mode: plan
+  output_model_name: visreg_a6.0_lsc1.0_lce1.0_lsh1.0_lr5e-5
+job27:
+  mode: plan
+  output_model_name: visreg_a8.0_lsc1.0_lce1.0_lsh1.0_lr5e-5

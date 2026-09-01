@@ -2,36 +2,43 @@ name: tdv
 train_script: scripts/train/lewm_tdv.py
 default:
   all:
-    region: us
+    region: ca
     cloud: community
     data: ogb
     dataset_name: galilai-group/ogb_cube_single
     hf_repo: flamma77/lewm-base
+    hf_prefix: tdv
   train:
     gpu: NVIDIA GeForce RTX 5090
+    wandb_project: lewm-tdv
     wandb.enabled: true
     hf.enabled: true
     trainer.max_epochs: 10
     num_workers: 6
     batch_size: 128
   mpc:
-    gpu: NVIDIA RTX 4000 Ada Generation
+    gpu: NVIDIA GeForce RTX 3090
     seed: 7
     num_eval: 2000
-    batch_size: 100
-    eval_output_dir: data
-    eval_output_hf: true
-  plan:
-    gpu: NVIDIA RTX 4000 Ada Generation
-    seed: 42
-    num_eval: 50
     batch_size: 50
     eval_output_dir: data
     eval_output_hf: true
+    stack: 2
+  plan:
+    gpu: NVIDIA GeForce RTX 3090
+    seed: 42
+    num_eval: 200
+    batch_size: 100
+    num_candidates: 64
+    eval_output_dir: data
+    eval_output_hf: true
+    stack: 3
 param_map:
   data: data
   dataset_name: data.dataset.name
   hf_repo: hf.repo_id
+  wandb_project: wandb.config.project
+  hf_prefix: hf.path_prefix
   batch_size: loader.batch_size
   a: loss.tdv.weight
   lam: loss.sigreg.weight
@@ -61,6 +68,103 @@ job4:
 job5:
   mode: train
   params:
-    a: 0.3
+    a: 0.0
     lam: 0.1
+    lr: '2.5e-5'
+  pod_id: ck1hrmn362y58q
+  status: running
+  output_model_name: tdv_a0.0_lam0.1_lr2.5e-5
+job6:
+  mode: train
+  params:
+    a: 0.0
+    lam: 0.1
+    lr: 0.0001
+  pod_id: 9osyj19hrz6g63
+  status: running
+  output_model_name: tdv_a0.0_lam0.1_lr1e-4
+job7:
+  mode: train
+  params:
+    a: 1.0
+    lam: 0.2
+    lr: '2.5e-5'
+  pod_id: 5q33euqi79hyju
+  status: running
+  output_model_name: tdv_a1.0_lam0.2_lr2.5e-5
+job8:
+  mode: train
+  params:
+    a: 1.0
+    lam: 0.2
+    lr: 0.0001
+  pod_id: 7errqu1q66za86
+  status: running
+  output_model_name: tdv_a1.0_lam0.2_lr1e-4
+job9:
+  mode: train
+  params:
+    a: 1.0
+    lam: 0.25
     lr: 5.0e-05
+  pod_id: tkd0gs1c8gtk91
+  status: running
+  output_model_name: tdv_a1.0_lam0.25_lr5e-5
+job10:
+  mode: plan
+  output_model_name: quentinll/lewm-cube
+  is_hf_model: true
+  status: completed
+job11:
+  mode: plan
+  output_model_name: start22_a0.0_l0.1_lr5e-5
+  status: completed
+job12:
+  mode: plan
+  output_model_name: start22_a1.0_l0.2_lr5e-5
+  status: completed
+job13:
+  mode: mpc
+  output_model_name: tdv_a0.0_lam0.1_lr2.5e-5
+  pod_id: u7jltzdwjtbzq3
+  status: running
+job14:
+  mode: mpc
+  output_model_name: tdv_a0.0_lam0.1_lr1e-4
+  pod_id: u7jltzdwjtbzq3
+  status: running
+job15:
+  mode: mpc
+  output_model_name: tdv_a1.0_lam0.2_lr2.5e-5
+  pod_id: u7jltzdwjtbzq3
+  status: running
+job16:
+  mode: mpc
+  output_model_name: tdv_a1.0_lam0.2_lr1e-4
+  status: completed
+job17:
+  mode: mpc
+  output_model_name: tdv_a1.0_lam0.25_lr5e-5
+  pod_id: 73ajihdei48xeb
+  status: running
+job18:
+  mode: mpc
+  output_model_name: tdv_a1.0_lam0.25_lr2.5e-5
+job19:
+  mode: mpc
+  output_model_name: tdv_a1.0_lam0.25_lr1e-4
+job20:
+  mode: plan
+  output_model_name: tdv_a0.0_lam0.1_lr1e-4
+  pod_id: cesbynagdgcd0e
+  status: running
+job21:
+  mode: plan
+  output_model_name: tdv_a1.0_lam0.25_lr2.5e-5
+  pod_id: cesbynagdgcd0e
+  status: running
+job22:
+  mode: plan
+  output_model_name: tdv_a1.0_lam0.25_lr1e-4
+  pod_id: cesbynagdgcd0e
+  status: running

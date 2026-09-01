@@ -191,9 +191,14 @@ def launch_direct(
     else:
         print("  Region:   any")
     print(f"  Cost/hr:  ${pod.get('costPerHr', 'unknown')}")
-    for key in ("MODE", "HF_DATASET", "HF_DATASET_DIR", "DRY_RUN", "CMD_0"):
+    for key in ("MODE", "HF_DATASET", "HF_DATASET_DIR", "DRY_RUN"):
         if key in env:
             print(f"  {key}={env[key]}")
+    for key in sorted(
+        (k for k in env if k.startswith("CMD_")),
+        key=lambda k: int(k.split("_", 1)[1]),
+    ):
+        print(f"  {key}={env[key]}")
     print(f"  Waiting {wait}s to confirm the pod is still running...")
 
     time.sleep(wait)

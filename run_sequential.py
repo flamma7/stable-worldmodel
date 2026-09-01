@@ -32,6 +32,12 @@ def parse_args():
     parser.add_argument("--eval-output-dir", default="data")
     parser.add_argument("--dataset", default=DEFAULT_DATASET)
     parser.add_argument(
+        "--num-candidates",
+        type=int,
+        default=64,
+        help="Plan-mode eval.num_candidates (ignored for mpc)",
+    )
+    parser.add_argument(
         "--is-hf-model",
         action="store_true",
         help="Treat model_name as a HuggingFace repo id (skip checkpoint download)",
@@ -92,7 +98,10 @@ def ensure_checkpoint(repo, subdir, name, ckpt_root):
     return dest / f"weights_epoch_{epoch}.pt"
 
 
-def run_eval(mode, policy, eval_name, seed, num_eval, batch_size, output_dir, dataset):
+def run_eval(
+    mode, policy, eval_name, seed, num_eval, batch_size, output_dir, dataset,
+    num_candidates=64,
+):
     if mode == "plan":
         cmd = [
             sys.executable,
@@ -104,7 +113,7 @@ def run_eval(mode, policy, eval_name, seed, num_eval, batch_size, output_dir, da
             f"eval.num_eval={num_eval}",
             f"eval.batch_size={batch_size}",
             f"eval.output_dir={output_dir}",
-            "eval.num_candidates=64",
+            f"eval.num_candidates={num_candidates}",
             "-cn",
             "cube",
         ]
@@ -206,6 +215,7 @@ def main():
         args.batch_size,
         output_dir,
         args.dataset,
+        num_candidates=args.num_candidates,
     )
     push_eval_npzs(repo, subdir, output_dir, [npz])
 
