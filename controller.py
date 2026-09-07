@@ -56,6 +56,7 @@ TRAIN_SKIP_KEYS = {
     "train_script",
     "gpu_options",
     "stack",
+    "solver",
 }
 
 
@@ -329,6 +330,8 @@ def build_eval_cmd(cfg, job, mapped, mode):
         parts.extend(
             ["--num-candidates", str(mapped.get("num_candidates", 64))]
         )
+    if mode == "mpc":
+        parts.extend(["--solver", str(mapped.get("solver", "icem"))])
     if job.get("is_hf_model"):
         parts.append("--is-hf-model")
     return " ".join(parts), model_name

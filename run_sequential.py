@@ -42,6 +42,11 @@ def parse_args():
         action="store_true",
         help="Treat model_name as a HuggingFace repo id (skip checkpoint download)",
     )
+    parser.add_argument(
+        "--solver",
+        default="icem",
+        help="MPC Hydra solver config (e.g. cem, icem). Ignored for plan.",
+    )
     return parser.parse_args()
 
 
@@ -100,7 +105,7 @@ def ensure_checkpoint(repo, subdir, name, ckpt_root):
 
 def run_eval(
     mode, policy, eval_name, seed, num_eval, batch_size, output_dir, dataset,
-    num_candidates=64,
+    num_candidates=64, solver="icem",
 ):
     if mode == "plan":
         cmd = [
@@ -128,7 +133,7 @@ def run_eval(
             f"eval.num_eval={num_eval}",
             f"eval.batch_size={batch_size}",
             f"eval.output_dir={output_dir}",
-            "solver=icem",
+            f"solver={solver}",
             "-cn",
             "cube",
         ]
@@ -204,7 +209,7 @@ def main():
 
     ensure_hf_eval_dir(repo, subdir, output_dir)
 
-    suffix = "plan" if args.mode == "plan" else "icem"
+    suffix = "plan" if args.mode == "plan" else args.solver
     eval_name = f"{name.replace('/', '-')}_{suffix}_{args.seed}"
     npz = run_eval(
         args.mode,
@@ -216,6 +221,7 @@ def main():
         output_dir,
         args.dataset,
         num_candidates=args.num_candidates,
+        solver=args.solver,
     )
     push_eval_npzs(repo, subdir, output_dir, [npz])
 
