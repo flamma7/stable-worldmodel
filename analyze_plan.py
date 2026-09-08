@@ -10,9 +10,10 @@ sequences the same way the simulator does:
 C_cg = C_cube / s_cube + C_gripper / s_gripper, with fixed scales defaulting
 to the median expert start→goal displacements in each npz.
 
-Files named ``*_<seed>.npz`` (e.g. ``plan_model_plan_42.npz``) are analyzed
-and reported per seed. Scale-consistency checks apply within a seed, not
-across seeds.
+Reads ``plan_*.npz`` (old eval) and ``plan_i_*.npz`` (new eval with start
+costs). Files named ``*_<seed>.npz`` (e.g. ``plan_model_plan_42.npz``) are
+reported per seed. Scale-consistency checks apply within a seed, not across
+seeds.
 
 Higher positive Spearman ρ means the model ranks candidate plans more
 usefully for MPC. Correlation is computed per scenario (same start/goal,
@@ -87,16 +88,28 @@ def rho_stats(latent, physical):
     }
 
 
-def collect_npz_paths(path):
+def collect_npz_paths(path, prefixes=('plan_',)):
+    """Collect ``.npz`` files whose names start with one of ``prefixes``.
+
+    ``plan_`` matches both old ``plan_*`` dumps and new ``plan_i_*`` dumps.
+    """
     path = Path(path)
     if path.is_file():
         if path.suffix != '.npz':
             raise SystemExit(f'not an .npz file: {path}')
+        if prefixes and not path.name.startswith(prefixes):
+            raise SystemExit(
+                f'{path.name} does not match prefixes {prefixes}'
+            )
         return [path]
     if path.is_dir():
-        files = sorted(path.glob('*.npz'))
+        files = sorted(
+            f
+            for f in path.glob('*.npz')
+            if not prefixes or f.name.startswith(prefixes)
+        )
         if not files:
-            raise SystemExit(f'no .npz files in {path}')
+            raise SystemExit(f'no matching .npz files in {path}')
         return files
     raise SystemExit(f'path not found: {path}')
 

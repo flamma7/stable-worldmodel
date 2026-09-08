@@ -12,11 +12,15 @@ For each dataset scenario (fixed start and goal), sample N action sequences,
 score them with the world model's latent planning cost, then execute the same
 sequences in the simulator and record terminal cube / gripper distances.
 
-Writes ``<eval.output_dir>/plan_<eval.name>.npz`` for ``analyze_plan.py``. Per-scenario arrays:
+Writes ``<eval.output_dir>/plan_i_<eval.name>.npz`` for ``analyze_plan.py``
+and ``analyze_iplan.py``. Per-scenario arrays:
 
-- cost_latent: (N,)  |z_hat_H - z_g|_2^2  from ``model.get_cost``
-- cost_cube: (N,)    |p_cube,H - p_cube,g|_2
-- cost_gripper: (N,) |p_gripper,H - p_gripper,g|_2
+- cost_latent: (N,)        |z_hat_H - z_g|_2^2  from ``model.get_cost``
+- cost_cube: (N,)          |p_cube,H - p_cube,g|_2
+- cost_gripper: (N,)       |p_gripper,H - p_gripper,g|_2
+- cost_latent_start: ()    |z_0 - z_g|_2^2  (encode start, no rollout)
+- cost_cube_start: ()      |p_cube,0 - p_cube,g|_2  (live sim after reset)
+- cost_gripper_start: ()   |p_gripper,0 - p_gripper,g|_2
 """
 
 import warnings
@@ -253,6 +257,47 @@ def expand_samples(info, n_samples, device, dtype):
     return out
 
 
+def _tensors_to_device(info, device, dtype):
+    out = {}
+    for k, v in info.items():
+        if torch.is_tensor(v):
+            target_dtype = dtype if v.is_floating_point() else None
+            out[k] = v.to(device=device, dtype=target_dtype)
+    return out
+
+
+def _encode_goal(model, info):
+    """Goal embedding, matching LeWM/PLDM ``get_cost``."""
+    goal = dict(info)
+    goal['pixels'] = goal['goal']
+    for k in list(goal.keys()):
+        if k.startswith('goal_'):
+            goal[k[len('goal_') :]] = goal.pop(k)
+    goal.pop('action', None)
+    return model.encode(goal)
+
+
+def latent_start_costs(model, info, device, dtype):
+    """C_latent(z_0) = |z_0 - z_g|_2^2 with no predictor rollout.
+
+    Same last-step sum-MSE as LeWM/PLDM ``criterion``, using the encoded
+    start state in place of ``z_hat_H``.
+    """
+    if not hasattr(model, 'encode'):
+        raise TypeError(
+            'Loaded checkpoint has no encode; cannot score C_latent(z_0).'
+        )
+    prepared = _tensors_to_device(info, device, dtype)
+    prepared.pop('emb', None)
+    prepared.pop('goal_emb', None)
+    prepared.pop('predicted_emb', None)
+    start = model.encode(dict(prepared))
+    goal = _encode_goal(model, prepared)
+    z0 = start['emb'][..., -1, :].float()
+    zg = goal['emb'][..., -1, :].float()
+    return (z0 - zg).pow(2).sum(dim=-1).cpu().numpy().astype(np.float32)
+
+
 def latent_costs(model, info, candidates, device, dtype):
     """World-model planning cost for each (scenario, candidate).
 
@@ -411,6 +456,9 @@ def run(cfg: DictConfig):
     cost_latent = np.empty((n_eval, n_cand), dtype=np.float32)
     cost_cube = np.empty((n_eval, n_cand), dtype=np.float32)
     cost_gripper = np.empty((n_eval, n_cand), dtype=np.float32)
+    cost_latent_start = np.empty((n_eval,), dtype=np.float32)
+    cost_cube_start = np.empty((n_eval,), dtype=np.float32)
+    cost_gripper_start = np.empty((n_eval,), dtype=np.float32)
 
     autocast_ctx = torch.autocast(
         device_type='cuda',
@@ -441,6 +489,18 @@ def run(cfg: DictConfig):
             setup_from_dataset(eval_world, init_state, goal_state, callables)
             info = prep._prepare_info(eval_world.infos)
 
+            goal_c = goal_cube[start:end]
+            goal_g = goal_gripper[start:end]
+            cost_cube_start[start:end] = np.linalg.norm(
+                live_cube_positions(eval_world) - goal_c, axis=-1
+            )
+            cost_gripper_start[start:end] = np.linalg.norm(
+                live_gripper_positions(eval_world) - goal_g, axis=-1
+            )
+            cost_latent_start[start:end] = latent_start_costs(
+                model, info, device, dtype
+            )
+
             candidates = torch.randn(
                 chunk_n,
                 n_cand,
@@ -464,8 +524,6 @@ def run(cfg: DictConfig):
                 eval_world.envs.single_action_space,
             )
 
-            goal_c = goal_cube[start:end]
-            goal_g = goal_gripper[start:end]
             for j in range(n_cand):
                 if j == 0 or (j + 1) % 10 == 0 or j + 1 == n_cand:
                     print(f'[eval]   candidate {j + 1}/{n_cand}')
@@ -486,7 +544,7 @@ def run(cfg: DictConfig):
     npz_path = (
         Path(hydra.utils.get_original_cwd())
         / output_dir
-        / f'plan_{cfg.eval.name}.npz'
+        / f'plan_i_{cfg.eval.name}.npz'
     )
     npz_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(
@@ -494,6 +552,9 @@ def run(cfg: DictConfig):
         cost_latent=cost_latent,
         cost_cube=cost_cube,
         cost_gripper=cost_gripper,
+        cost_latent_start=cost_latent_start,
+        cost_cube_start=cost_cube_start,
+        cost_gripper_start=cost_gripper_start,
         episode_idx=np.asarray(eval_episodes).reshape(n_eval).astype(np.int64),
         start_step=np.asarray(eval_start_idx).reshape(n_eval).astype(np.int32),
         cube_displacement=cube_displacement.astype(np.float32),

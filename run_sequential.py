@@ -60,7 +60,7 @@ def npz_path_for(mode, eval_name, output_dir):
     if not root.is_absolute():
         root = HERE / root
     if mode == "plan":
-        return root / f"plan_{eval_name}.npz"
+        return root / f"plan_i_{eval_name}.npz"
     return root / f"{eval_name}.npz"
 
 
