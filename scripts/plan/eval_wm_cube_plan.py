@@ -266,6 +266,19 @@ def _tensors_to_device(info, device, dtype):
     return out
 
 
+def _encode_pixels(model, info):
+    """Observation embedding only. Matches LeWM/PLDM ``get_cost`` goal encode.
+
+    Start/goal costs are |z - z_g|_2^2 from pixels. ``encode`` calls
+    ``action_encoder`` whenever ``action`` is present, but reset actions are
+    NaN-filled env steps (not blocked WM actions) and are unused here.
+    """
+    obs = dict(info)
+    obs.pop('action', None)
+    obs.pop('act_emb', None)
+    return model.encode(obs)
+
+
 def _encode_goal(model, info):
     """Goal embedding, matching LeWM/PLDM ``get_cost``."""
     goal = dict(info)
@@ -273,8 +286,7 @@ def _encode_goal(model, info):
     for k in list(goal.keys()):
         if k.startswith('goal_'):
             goal[k[len('goal_') :]] = goal.pop(k)
-    goal.pop('action', None)
-    return model.encode(goal)
+    return _encode_pixels(model, goal)
 
 
 def latent_start_costs(model, info, device, dtype):
@@ -291,7 +303,7 @@ def latent_start_costs(model, info, device, dtype):
     prepared.pop('emb', None)
     prepared.pop('goal_emb', None)
     prepared.pop('predicted_emb', None)
-    start = model.encode(dict(prepared))
+    start = _encode_pixels(model, prepared)
     goal = _encode_goal(model, prepared)
     z0 = start['emb'][..., -1, :].float()
     zg = goal['emb'][..., -1, :].float()

@@ -55,10 +55,6 @@ default:
         batch_size: 100
         cloud: secure
         region: any
-      - gpu: NVIDIA RTX 5000 Ada Generation # Terrible deal, the 2000 is better
-        batch_size: 200
-        cloud: community
-        region: any
 param_map:
   data: data
   dataset_name: data.dataset.name
@@ -132,7 +128,10 @@ job6:
   seed: 7
   num_eval: 200
   num_candidates: 64
-  status: completed
+  status: running
+  pod_ids:
+    - y3alzojfuwenrl
+  pod_id: y3alzojfuwenrl
 job7:
   mode: plan
   output_model_name: lewm_lam0.1_lr5e-5
@@ -141,8 +140,8 @@ job7:
   num_candidates: 64
   status: running
   pod_ids:
-    - ji8vj191e8mb18
-  pod_id: ji8vj191e8mb18
+    - 8ozgy4vuxwcuta
+  pod_id: 8ozgy4vuxwcuta
 job8:
   mode: plan
   output_model_name: lewm_lam0.1_lr5e-5
@@ -150,9 +149,6 @@ job8:
   num_eval: 200
   num_candidates: 64
   status: running
-  pod_ids:
-    - he3z6adn6n4mfb
-  pod_id: he3z6adn6n4mfb
 job9:
   mode: mpc
   output_model_name: lewm_lam0.1_lr5e-5
@@ -185,3 +181,25 @@ job11:
   pod_ids:
     - 12fm9q3ddg5ee2
   pod_id: 12fm9q3ddg5ee2
+job12:
+  mode: plan
+  output_model_name: quentinll/lewm-cube
+  is_hf_model: true
+  seed: 42
+  num_eval: 200
+  num_candidates: 64
+  status: running
+  pod_ids:
+    - 4nqe5vh51jnj6v
+  pod_id: 4nqe5vh51jnj6v
+job13:
+  mode: plan
+  output_model_name: quentinll/lewm-cube
+  is_hf_model: true
+  seed: 101
+  num_eval: 200
+  num_candidates: 64
+  status: running
+  pod_ids:
+    - rfyzyqoywssn4z
+  pod_id: rfyzyqoywssn4z
