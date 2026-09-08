@@ -10,6 +10,10 @@ sequences the same way the simulator does:
 C_cg = C_cube / s_cube + C_gripper / s_gripper, with fixed scales defaulting
 to the median expert start→goal displacements in each npz.
 
+Files named ``*_<seed>.npz`` (e.g. ``plan_model_plan_42.npz``) are analyzed
+and reported per seed. Scale-consistency checks apply within a seed, not
+across seeds.
+
 Higher positive Spearman ρ means the model ranks candidate plans more
 usefully for MPC. Correlation is computed per scenario (same start/goal,
 varying candidates) then averaged; pooled ρ over all pairs is also reported.
@@ -19,10 +23,14 @@ python analyze_plan.py data/ogb_cube_plan.npz
 """
 
 import argparse
+import re
 from pathlib import Path
 
 import numpy as np
 from scipy.stats import spearmanr
+
+# {anything}_{seed}.npz from run_sequential.py
+SEED_RE = re.compile(r'_(\d+)$')
 
 REQUIRED_KEYS = (
     'cost_latent',
@@ -93,6 +101,15 @@ def collect_npz_paths(path):
     raise SystemExit(f'path not found: {path}')
 
 
+def parse_seed(path, loaded=None):
+    match = SEED_RE.search(Path(path).stem)
+    if match:
+        return int(match.group(1))
+    if loaded is not None and 'seed' in loaded.files:
+        return int(np.asarray(loaded['seed']).reshape(-1)[0])
+    return None
+
+
 def analyze_npz(path, s_cube=None, s_gripper=None):
     loaded = np.load(path)
     missing = [k for k in REQUIRED_KEYS if k not in loaded.files]
@@ -116,6 +133,7 @@ def analyze_npz(path, s_cube=None, s_gripper=None):
 
     return {
         'file': path.name,
+        'seed': parse_seed(path, loaded),
         'n_scen': n_scen,
         'n_cand': n_cand,
         's_cube': cube_scale,
@@ -141,6 +159,45 @@ def _rho_cell(stats):
     )
 
 
+def _group_key(row):
+    seed = row['seed']
+    return (seed is None, -1 if seed is None else seed, row['file'])
+
+
+def _group_label(row):
+    seed = row['seed']
+    if seed is None:
+        return None
+    return f'seed={seed}'
+
+
+def _check_scale_consistency(rows, s_cube, s_gripper):
+    by_seed = {}
+    for row in rows:
+        by_seed.setdefault(row['seed'], []).append(row)
+
+    for seed, group in by_seed.items():
+        seed_s = 'unparsed' if seed is None else str(seed)
+        ref = group[0]
+        for row in group[1:]:
+            if s_cube is None and row['s_cube'] != ref['s_cube']:
+                raise SystemExit(
+                    f's_cube mismatch within seed={seed_s}: '
+                    f'{ref["file"]} has {ref["s_cube"]:.8f}, '
+                    f'{row["file"]} has {row["s_cube"]:.8f}. '
+                    'Pass --s-cube to set a shared scale, or check that '
+                    'eval configs (dataset, num_eval) match.'
+                )
+            if s_gripper is None and row['s_gripper'] != ref['s_gripper']:
+                raise SystemExit(
+                    f's_gripper mismatch within seed={seed_s}: '
+                    f'{ref["file"]} has {ref["s_gripper"]:.8f}, '
+                    f'{row["file"]} has {row["s_gripper"]:.8f}. '
+                    'Pass --s-gripper to set a shared scale, or check that '
+                    'eval configs (dataset, num_eval) match.'
+                )
+
+
 def print_table(rows):
     headers = (
         'file',
@@ -153,6 +210,7 @@ def print_table(rows):
         'ρ_cg mean±std (pooled)',
         '%ρ>0 cg',
     )
+    rows = sorted(rows, key=_group_key)
     cells = []
     for row in rows:
         cells.append(
@@ -186,9 +244,18 @@ def print_table(rows):
         )
 
     rule = '-' * (sum(widths) + 2 * (len(widths) - 1))
-    print(fmt_row(headers))
-    print(rule)
-    for cell in cells:
+    unset = object()
+    prev_label = unset
+    for row, cell in zip(rows, cells):
+        label = _group_label(row)
+        if label != prev_label:
+            if prev_label is not unset:
+                print()
+            if label is not None:
+                print(label)
+            print(fmt_row(headers))
+            print(rule)
+            prev_label = label
         print(fmt_row(cell))
 
 
@@ -216,42 +283,24 @@ def main():
     paths = collect_npz_paths(args.path)
     rows = []
     skipped = []
-    ref_s_cube = None
-    ref_s_gripper = None
-    ref_file = None
     for path in paths:
         try:
             row = analyze_npz(path, args.s_cube, args.s_gripper)
         except (ValueError, OSError, KeyError) as exc:
             skipped.append((path, exc))
             continue
-        if ref_file is None:
-            ref_s_cube = row['s_cube']
-            ref_s_gripper = row['s_gripper']
-            ref_file = row['file']
-        else:
-            if args.s_cube is None and row['s_cube'] != ref_s_cube:
-                raise SystemExit(
-                    f's_cube mismatch: {ref_file} has {ref_s_cube:.8f}, '
-                    f'{row["file"]} has {row["s_cube"]:.8f}. '
-                    'Pass --s-cube to set a shared scale, or check that '
-                    'eval configs (seed, dataset, num_eval) match.'
-                )
-            if args.s_gripper is None and row['s_gripper'] != ref_s_gripper:
-                raise SystemExit(
-                    f's_gripper mismatch: {ref_file} has {ref_s_gripper:.8f}, '
-                    f'{row["file"]} has {row["s_gripper"]:.8f}. '
-                    'Pass --s-gripper to set a shared scale, or check that '
-                    'eval configs (seed, dataset, num_eval) match.'
-                )
         rows.append(row)
 
     if not rows:
         raise SystemExit('no valid plan-eval .npz files to analyze')
 
+    _check_scale_consistency(rows, args.s_cube, args.s_gripper)
+
+    n_seeds = len({row['seed'] for row in rows if row['seed'] is not None})
+    seed_note = f', {n_seeds} seed(s)' if n_seeds else ''
     print(
-        f'Spearman ρ(C_latent, C_physical) over {len(rows)} file(s)  '
-        '[per-scenario mean ± std (pooled)]'
+        f'Spearman ρ(C_latent, C_physical) over {len(rows)} file(s)'
+        f'{seed_note}  [per-scenario mean ± std (pooled)]'
     )
     print()
     print_table(rows)

@@ -2,7 +2,7 @@ name: lewm
 train_script: scripts/train/lewm.py
 default:
   all:
-    region: ca
+    region: us
     cloud: community
     data: ogb
     dataset_name: galilai-group/ogb_cube_single
@@ -10,14 +10,13 @@ default:
     hf_prefix: lewm
   train:
     gpu: NVIDIA GeForce RTX 5090
-    wandb_project: lewm
+    wandb_project: lewm-tdv
     wandb.enabled: true
     hf.enabled: true
     trainer.max_epochs: 10
     num_workers: 6
     batch_size: 128
   mpc:
-    gpu: NVIDIA GeForce RTX 3090
     seed: 7
     num_eval: 2000
     batch_size: 50
@@ -25,8 +24,25 @@ default:
     eval_output_hf: true
     stack: 1
     solver: icem
+    platform:
+      - gpu: NVIDIA RTX A5000
+        batch_size: 150
+        cloud: community
+        region: any
+      - gpu: NVIDIA RTX A4000
+        batch_size: 100
+        cloud: community
+      - gpu: NVIDIA RTX 4000 Ada Generation
+        batch_size: 150
+        cloud: secure
+      - gpu: NVIDIA RTX 5000 Ada Generation
+        batch_size: 250
+        cloud: community
+      - gpu: NVIDIA L40
+        batch_size: 350
+        cloud: community
+        region: any
   plan:
-    gpu: NVIDIA GeForce RTX 3090
     seed: 42
     num_eval: 200
     batch_size: 50
@@ -34,6 +50,15 @@ default:
     eval_output_dir: data
     eval_output_hf: true
     stack: 1
+    platform:
+      - gpu: NVIDIA RTX 2000 Ada Generation
+        batch_size: 100
+        cloud: secure
+        region: any
+      - gpu: NVIDIA RTX 5000 Ada Generation # Terrible deal, the 2000 is better
+        batch_size: 200
+        cloud: community
+        region: any
 param_map:
   data: data
   dataset_name: data.dataset.name
@@ -48,3 +73,115 @@ job0:
   params:
     lam: 0.1
     lr: 5.0e-05
+  pod_id: 6tj6cj4xwawmxj
+  status: running
+  output_model_name: lewm_lam0.1_lr5e-5
+job1:
+  mode: mpc
+  output_model_name: lewm_lam0.1_lr5e-5
+  seed: 7
+  num_eval: 2000
+  solver: icem
+  status: running
+  pod_ids:
+    - j3qv5g8tgr9g6r
+  pod_id: j3qv5g8tgr9g6r
+job2:
+  mode: mpc
+  output_model_name: lewm_lam0.1_lr5e-5
+  seed: 42
+  num_eval: 5000
+  solver: cem
+  status: running
+  pod_ids:
+    - gfbjawn89ubdtw
+  pod_id: gfbjawn89ubdtw
+job3:
+  mode: mpc
+  output_model_name: lewm_lam0.1_lr5e-5
+  seed: 7
+  num_eval: 5000
+  solver: cem
+  status: running
+  pod_ids:
+    - tvubi5109mvj8m
+  pod_id: tvubi5109mvj8m
+job4:
+  mode: mpc
+  output_model_name: lewm_lam0.1_lr5e-5
+  seed: 101
+  num_eval: 2000
+  solver: icem
+  status: running
+  pod_ids:
+    - vfizedblmojha5
+  pod_id: vfizedblmojha5
+job5:
+  mode: mpc
+  output_model_name: lewm_lam0.1_lr5e-5
+  seed: 42
+  num_eval: 2000
+  solver: icem
+  status: running
+  pod_ids:
+    - hvejl3r4ufbwn5
+  pod_id: hvejl3r4ufbwn5
+job6:
+  mode: plan
+  output_model_name: lewm_lam0.1_lr5e-5
+  seed: 7
+  num_eval: 200
+  num_candidates: 64
+  status: completed
+job7:
+  mode: plan
+  output_model_name: lewm_lam0.1_lr5e-5
+  seed: 101
+  num_eval: 200
+  num_candidates: 64
+  status: running
+  pod_ids:
+    - ji8vj191e8mb18
+  pod_id: ji8vj191e8mb18
+job8:
+  mode: plan
+  output_model_name: lewm_lam0.1_lr5e-5
+  seed: 42
+  num_eval: 200
+  num_candidates: 64
+  status: running
+  pod_ids:
+    - he3z6adn6n4mfb
+  pod_id: he3z6adn6n4mfb
+job9:
+  mode: mpc
+  output_model_name: lewm_lam0.1_lr5e-5
+  seed: 101
+  num_eval: 5000
+  solver: cem
+  status: running
+  pod_ids:
+    - zb8fw2j36t88pg
+  pod_id: zb8fw2j36t88pg
+job10:
+  mode: mpc
+  output_model_name: quentinll/lewm-cube
+  is_hf_model: true
+  seed: 42
+  num_eval: 2000
+  solver: icem
+  status: running
+  pod_ids:
+    - 6t386t4dlnflof
+  pod_id: 6t386t4dlnflof
+job11:
+  mode: mpc
+  output_model_name: quentinll/lewm-cube
+  is_hf_model: true
+  seed: 101
+  num_eval: 2000
+  solver: icem
+  status: running
+  pod_ids:
+    - 12fm9q3ddg5ee2
+  pod_id: 12fm9q3ddg5ee2

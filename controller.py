@@ -52,6 +52,7 @@ DEFAULT_A_TIMEOUT_S = 120
 DEFAULT_B_TIMEOUT_S = 12 * 60
 POLL_S = 10
 TABLE_S = 15
+LAUNCH_INTERVAL_S = 8
 POD_STARTUP_DIR = "pod_startup"
 TRAIN_SKIP_KEYS = {
     "gpu",
@@ -72,6 +73,8 @@ TRAIN_SKIP_KEYS = {
 PRINT_LOCK = threading.Lock()
 LIVE_PODS = set()
 LIVE_LOCK = threading.Lock()
+LAUNCH_LOCK = threading.Lock()
+_last_launch_at = 0.0
 
 
 class _IndentDumper(yaml.SafeDumper):
@@ -82,6 +85,25 @@ class _IndentDumper(yaml.SafeDumper):
 def log(msg):
     with PRINT_LOCK:
         print(msg, flush=True)
+
+
+def throttled_launch_direct(announce=None, **kwargs):
+    """Call launch_direct with a global 15s gap between successful GPU starts.
+
+    Create errors (sold-out, API failure) do not consume the interval, so the
+    next GPU attempt can fire immediately.
+    """
+    global _last_launch_at
+    with LAUNCH_LOCK:
+        wait = LAUNCH_INTERVAL_S - (time.monotonic() - _last_launch_at)
+        if wait > 0:
+            log(f"launch throttle: waiting {wait:.1f}s")
+            time.sleep(wait)
+        if announce:
+            log(announce)
+        pod_id = deploy_mod.launch_direct(**kwargs)
+        _last_launch_at = time.monotonic()
+        return pod_id
 
 
 def parse_args():
@@ -1009,12 +1031,12 @@ def launch_group_pod(cfg, group, gpu_entry, replica, dry_run_container=False):
             "/", "-"
         )
     )
-    log(
-        f"{label} r{replica}: launching {pod_name} on {spec['gpu']} "
-        f"({spec['cloud']}, {spec['region']}) batch_size="
-        f"{gpu_entry.get('batch_size')}"
-    )
-    pod_id = deploy_mod.launch_direct(
+    pod_id = throttled_launch_direct(
+        announce=(
+            f"{label} r{replica}: launching {pod_name} on {spec['gpu']} "
+            f"({spec['cloud']}, {spec['region']}) batch_size="
+            f"{gpu_entry.get('batch_size')}"
+        ),
         name=pod_name,
         gpu=spec["gpu"],
         extra_env=env,

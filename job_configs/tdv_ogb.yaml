@@ -27,10 +27,10 @@ default:
     stack: 1
     solver: icem
     platform:
-      - gpu: NVIDIA RTX 2000 Ada Generation
+      - gpu: NVIDIA RTX 4000 Ada Generation
         batch_size: 150
         cloud: secure
-      - gpu: NVIDIA RTX 4000 Ada Generation
+      - gpu: NVIDIA RTX 2000 Ada Generation
         batch_size: 150
         cloud: secure
       - gpu: NVIDIA RTX A4500
@@ -83,24 +83,26 @@ job0:
   mode: mpc
   output_model_name: start22_a0.0_l0.1_lr5e-5
   pod_id: dkiilihfi7bir1
-  status: running
+  status: completed
 job1:
   mode: mpc
   output_model_name: start22_a1.0_l0.15_lr5e-5
   pod_id: fsgpe4f16xnd0c
-  status: running
+  status: completed
 job2:
   mode: mpc
   output_model_name: start22_a1.0_l0.2_lr5e-5
   pod_id: nkmgr7o2uok4ef
-  status: running
+  status: completed
 job3:
   mode: mpc
   output_model_name: start22_a2.0_l0.1_lr5e-5
+  status: completed
 job4:
   mode: mpc
   output_model_name: quentinll/lewm-cube
   is_hf_model: true
+  status: completed
 job5:
   mode: train
   params:
@@ -163,17 +165,17 @@ job13:
   mode: mpc
   output_model_name: tdv_a0.0_lam0.1_lr2.5e-5
   pod_id: u7jltzdwjtbzq3
-  status: running
+  status: completed
 job14:
   mode: mpc
   output_model_name: tdv_a0.0_lam0.1_lr1e-4
   pod_id: u7jltzdwjtbzq3
-  status: running
+  status: completed
 job15:
   mode: mpc
   output_model_name: tdv_a1.0_lam0.2_lr2.5e-5
   pod_id: u7jltzdwjtbzq3
-  status: running
+  status: completed
 job16:
   mode: mpc
   output_model_name: tdv_a1.0_lam0.2_lr1e-4
@@ -182,7 +184,7 @@ job17:
   mode: mpc
   output_model_name: tdv_a1.0_lam0.25_lr5e-5
   pod_id: 73ajihdei48xeb
-  status: running
+  status: completed
 job18:
   mode: mpc
   output_model_name: tdv_a1.0_lam0.25_lr2.5e-5
@@ -236,12 +238,14 @@ job27:
   seed: 7
   num_eval: 5000
   solver: cem
+  status: completed
 job28:
   mode: mpc
   output_model_name: tdv_a1.0_lam0.25_lr5e-5
   seed: 7
   num_eval: 5000
   solver: cem
+  status: completed
 job29:
   mode: mpc
   output_model_name: quentinll/lewm-cube
@@ -249,12 +253,14 @@ job29:
   seed: 42
   num_eval: 5000
   solver: cem
+  status: completed
 job30:
   mode: mpc
   output_model_name: tdv_a1.0_lam0.25_lr5e-5
   seed: 42
   num_eval: 5000
   solver: cem
+  status: completed
 job31:
   mode: mpc
   output_model_name: quentinll/lewm-cube
@@ -262,12 +268,17 @@ job31:
   seed: 42
   num_eval: 2000
   solver: icem
+  status: running
+  pod_ids:
+    - 97b141gnuv3fl2
+  pod_id: 97b141gnuv3fl2
 job32:
   mode: mpc
   output_model_name: tdv_a1.0_lam0.25_lr5e-5
   seed: 42
   num_eval: 2000
   solver: icem
+  status: completed
 job33:
   mode: mpc
   output_model_name: quentinll/lewm-cube
@@ -275,12 +286,17 @@ job33:
   seed: 101
   num_eval: 2000
   solver: icem
+  status: running
+  pod_ids:
+    - 1s3vve8swxiwom
+  pod_id: 1s3vve8swxiwom
 job34:
   mode: mpc
   output_model_name: tdv_a1.0_lam0.25_lr5e-5
   seed: 101
   num_eval: 2000
   solver: icem
+  status: completed
 job35:
   mode: plan
   output_model_name: quentinll/lewm-cube
@@ -288,6 +304,7 @@ job35:
   seed: 7
   num_eval: 200
   num_candidates: 64
+  status: completed
 job36:
   mode: plan
   output_model_name: tdv_a1.0_lam0.25_lr5e-5
