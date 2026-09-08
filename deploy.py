@@ -15,6 +15,32 @@ import requests
 
 API = "https://rest.runpod.io/v1"
 
+_NO_GPU_MARKERS = (
+    "no more gpu",
+    "no gpus available",
+    "no gpu available",
+    "gpu not available",
+    "not currently available",
+    "no longer any",
+    "out of capacity",
+    "insufficient capacity",
+    "no instances available",
+    "no instances currently",
+    "there are no instances",
+    "there are no more",
+    "sold out",
+    "no longer available",
+)
+
+
+class NoGpuAvailable(RuntimeError):
+    """Runpod has no capacity for this GPU / cloud / region."""
+
+
+def is_no_gpu_error(text):
+    lowered = (text or "").lower()
+    return any(marker in lowered for marker in _NO_GPU_MARKERS)
+
 REGION_GROUPS = {
     "north america": ["US", "CA"],
     "na": ["US", "CA"],
@@ -74,6 +100,12 @@ def terminate_pod(headers, pod_id):
     print(f"  terminated {pod_id}")
 
 
+def kill_pod(pod_id):
+    if not pod_id:
+        return
+    terminate_pod(api_headers(), pod_id)
+
+
 def running_pod_id(headers, pod_id):
     if not pod_id:
         return None
@@ -85,6 +117,22 @@ def running_pod_id(headers, pod_id):
     if (pod.get("desiredStatus") or "").upper() == "RUNNING":
         return pod_id
     return None
+
+
+def is_pod_active(pod_id):
+    """True if RunPod reports RUNNING, False if gone/stopped, None if API error."""
+    if not pod_id:
+        return False
+    try:
+        pod, error = fetch_pod(api_headers(), pod_id)
+    except Exception:
+        return None
+    if error:
+        if "not found" in (error or "").lower():
+            return False
+        return None
+    desired = str(pod.get("desiredStatus") or "").upper()
+    return desired == "RUNNING"
 
 
 def resolve_template(headers, name_or_id):
@@ -162,6 +210,10 @@ def launch_direct(
     cloud_type = resolve_cloud(cloud)
 
     env = dict(template_obj.get("env") or {})
+    # Blank template CMD_* so leftover CMD_1+ cannot re-run after stack=1.
+    for key in list(env):
+        if key.startswith("CMD_"):
+            env[key] = ""
     env.update({str(k): str(v) for k, v in extra_env.items()})
 
     payload = {
@@ -177,6 +229,10 @@ def launch_direct(
 
     r = requests.post(f"{API}/pods", headers=headers, json=payload)
     if not r.ok:
+        if is_no_gpu_error(r.text):
+            raise NoGpuAvailable(
+                f"{gpu} ({cloud_type}) unavailable: {r.status_code} {r.text}"
+            )
         raise RuntimeError(f"Runpod returned {r.status_code}:\n{r.text}")
 
     pod = r.json()
@@ -191,16 +247,19 @@ def launch_direct(
     else:
         print("  Region:   any")
     print(f"  Cost/hr:  ${pod.get('costPerHr', 'unknown')}")
-    for key in ("MODE", "HF_DATASET", "HF_DATASET_DIR", "DRY_RUN"):
+    for key in ("MODE", "HF_DATASET", "HF_DATASET_DIR", "HF_REPO", "HF_SUBDIR", "DRY_RUN"):
         if key in env:
             print(f"  {key}={env[key]}")
     for key in sorted(
-        (k for k in env if k.startswith("CMD_")),
+        (k for k in env if k.startswith("CMD_") and env[k]),
         key=lambda k: int(k.split("_", 1)[1]),
     ):
         print(f"  {key}={env[key]}")
-    print(f"  Waiting {wait}s to confirm the pod is still running...")
+    if wait <= 0:
+        print("  Skipping post-launch wait (heartbeat will confirm)")
+        return pod_id
 
+    print(f"  Waiting {wait}s to confirm the pod is still running...")
     time.sleep(wait)
     if running_pod_id(headers, pod_id):
         print("success")

@@ -5,12 +5,18 @@ python analyze.py data/ogb_cube_table.npz
 """
 
 import argparse
+import re
 from pathlib import Path
 
 import numpy as np
 
 DISTANCE_EDGES = (0.04, 0.13, 0.2)
 DISTANCE_LABELS = ('0-0.04', '0.04-0.13', '0.13-0.2', '0.2+')
+
+# {model}_{method}_{seed}.npz from run_sequential.py
+METHOD_SEED_RE = re.compile(
+    r'^(?P<model>.+)_(?P<method>[A-Za-z][A-Za-z0-9]*)_(?P<seed>\d+)$'
+)
 
 
 def collect_npz_paths(path):
@@ -232,6 +238,37 @@ def _fmt_rate(value):
     return f'{value:5.1f}%'
 
 
+def parse_method_seed(filename):
+    match = METHOD_SEED_RE.match(Path(filename).stem)
+    if not match:
+        return {'method': '', 'seed': None, 'model': Path(filename).stem}
+    return {
+        'method': match.group('method'),
+        'seed': int(match.group('seed')),
+        'model': match.group('model'),
+    }
+
+
+def _group_key(row):
+    info = parse_method_seed(row['file'])
+    seed = info['seed']
+    return (
+        info['method'] == '',
+        info['method'],
+        seed is None,
+        -1 if seed is None else seed,
+        info['model'],
+        row['file'],
+    )
+
+
+def _group_label(row):
+    info = parse_method_seed(row['file'])
+    if not info['method'] or info['seed'] is None:
+        return None
+    return f"{info['method']}  seed={info['seed']}"
+
+
 def print_comparison_table(rows):
     headers = (
         'file',
@@ -244,11 +281,14 @@ def print_comparison_table(rows):
         'both',
         'both ex-noop',
     )
+    rows = sorted(rows, key=_group_key)
     cells = []
     for row in rows:
+        info = parse_method_seed(row['file'])
+        label = info['model'] if info['method'] else row['file']
         cells.append(
             (
-                row['file'],
+                label,
                 str(row['n']),
                 str(row['n_excl']),
                 _fmt_rate(row['cube']),
@@ -273,9 +313,18 @@ def print_comparison_table(rows):
         )
 
     rule = '-' * (sum(widths) + 2 * (len(widths) - 1))
-    print(fmt_row(headers))
-    print(rule)
-    for cell in cells:
+    unset = object()
+    prev_label = unset
+    for row, cell in zip(rows, cells):
+        label = _group_label(row)
+        if label != prev_label:
+            if prev_label is not unset:
+                print()
+            if label is not None:
+                print(label)
+            print(fmt_row(headers))
+            print(rule)
+            prev_label = label
         print(fmt_row(cell))
 
 

@@ -5,7 +5,7 @@ Invoked by controller.py, e.g.
 
     python run_sequential.py mpc visreg_a1.0_lr5e-5_lam0.1 42 50 \\
         --batch-size 50 --hf-repo flamma77/lewm-base --hf-subdir visreg \\
-        --eval-output-dir data --dataset galilai-group/ogb_cube_single
+        --dataset galilai-group/ogb_cube_single
 """
 
 import argparse
@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -29,7 +30,11 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=50)
     parser.add_argument("--hf-repo", default="flamma77/lewm-base")
     parser.add_argument("--hf-subdir", required=True)
-    parser.add_argument("--eval-output-dir", default="data")
+    parser.add_argument(
+        "--eval-output-dir",
+        default=None,
+        help="Local eval output dir (default: $STABLEWM_HOME/results)",
+    )
     parser.add_argument("--dataset", default=DEFAULT_DATASET)
     parser.add_argument(
         "--num-candidates",
@@ -145,25 +150,45 @@ def hf_eval_dest(subdir, output_dir):
     return f"{subdir}/{output_dir}".strip("/")
 
 
+def hf_retry(desc, fn, attempts=8):
+    delay = 5
+    last = None
+    for i in range(1, attempts + 1):
+        try:
+            return fn()
+        except Exception as exc:
+            last = exc
+            print(f"{desc} failed ({i}/{attempts}): {exc}")
+            if i < attempts:
+                print(f"retrying in {delay}s")
+                time.sleep(delay)
+                delay = min(delay * 2, 120)
+    raise last
+
+
 def ensure_hf_eval_dir(repo, subdir, output_dir):
     from huggingface_hub import HfApi
 
     api = HfApi()
     dest_dir = hf_eval_dest(subdir, output_dir)
-    api.repo_info(repo_id=repo, repo_type="model")
-    existing = api.list_repo_files(repo_id=repo, repo_type="model")
-    prefix = dest_dir + "/"
-    if any(path.startswith(prefix) for path in existing):
-        print(f"HF eval dir exists: {repo}/{dest_dir}")
+
+    def _ensure():
+        api.repo_info(repo_id=repo, repo_type="model")
+        existing = api.list_repo_files(repo_id=repo, repo_type="model")
+        prefix = dest_dir + "/"
+        if any(path.startswith(prefix) for path in existing):
+            print(f"HF eval dir exists: {repo}/{dest_dir}")
+            return dest_dir
+        print(f"creating {repo}/{dest_dir}")
+        api.upload_file(
+            path_or_fileobj=b"",
+            path_in_repo=f"{dest_dir}/.gitkeep",
+            repo_id=repo,
+            repo_type="model",
+        )
         return dest_dir
-    print(f"creating {repo}/{dest_dir}")
-    api.upload_file(
-        path_or_fileobj=b"",
-        path_in_repo=f"{dest_dir}/.gitkeep",
-        repo_id=repo,
-        repo_type="model",
-    )
-    return dest_dir
+
+    return hf_retry(f"HF eval dir {repo}/{dest_dir}", _ensure)
 
 
 def push_eval_npzs(repo, subdir, output_dir, npz_paths):
@@ -171,6 +196,7 @@ def push_eval_npzs(repo, subdir, output_dir, npz_paths):
 
     api = HfApi()
     dest_dir = hf_eval_dest(subdir, output_dir)
+    failed = []
 
     for path in npz_paths:
         path = Path(path)
@@ -178,27 +204,42 @@ def push_eval_npzs(repo, subdir, output_dir, npz_paths):
             print(f"skip missing {path}")
             continue
         dest = f"{dest_dir}/{path.name}"
-        api.upload_file(
-            path_or_fileobj=str(path),
-            path_in_repo=dest,
-            repo_id=repo,
-            repo_type="model",
-        )
-        print(f"uploaded {dest} to {repo}")
+
+        def _upload(src=str(path), dest_path=dest):
+            api.upload_file(
+                path_or_fileobj=src,
+                path_in_repo=dest_path,
+                repo_id=repo,
+                repo_type="model",
+            )
+
+        try:
+            hf_retry(f"upload {dest}", _upload)
+            print(f"uploaded {dest} to {repo}")
+        except Exception as exc:
+            print(f"giving up on {dest}: {exc}")
+            failed.append(path)
+    return failed
 
 
 def main():
     args = parse_args()
     repo = args.hf_repo
     subdir = args.hf_subdir
-    output_dir = args.eval_output_dir
     name = args.model_name
     if "STABLEWM_HOME" not in os.environ:
         raise SystemExit("STABLEWM_HOME is required")
-    ckpt_root = Path(os.environ["STABLEWM_HOME"]) / "checkpoints"
-    Path(output_dir if Path(output_dir).is_absolute() else HERE / output_dir).mkdir(
-        parents=True, exist_ok=True
-    )
+    home = Path(os.environ["STABLEWM_HOME"])
+    ckpt_root = home / "checkpoints"
+    if args.eval_output_dir in (None, "", "data"):
+        output_dir = home / "results"
+    else:
+        output_dir = Path(args.eval_output_dir)
+        if not output_dir.is_absolute():
+            output_dir = home / output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = str(output_dir)
+    hf_output_dir = Path(output_dir).name
 
     if args.is_hf_model:
         print(f"Using HuggingFace policy {name}")
@@ -207,7 +248,10 @@ def main():
         print(f"Downloading {repo}/{subdir}/{name}")
         policy = ensure_checkpoint(repo, subdir, name, ckpt_root)
 
-    ensure_hf_eval_dir(repo, subdir, output_dir)
+    try:
+        ensure_hf_eval_dir(repo, subdir, hf_output_dir)
+    except Exception as exc:
+        print(f"HF eval dir setup failed (eval will still run): {exc}")
 
     suffix = "plan" if args.mode == "plan" else args.solver
     eval_name = f"{name.replace('/', '-')}_{suffix}_{args.seed}"
@@ -223,7 +267,13 @@ def main():
         num_candidates=args.num_candidates,
         solver=args.solver,
     )
-    push_eval_npzs(repo, subdir, output_dir, [npz])
+    print(f"eval npz saved locally: {npz}")
+    failed = push_eval_npzs(repo, subdir, hf_output_dir, [npz])
+    if failed:
+        print(
+            "HF upload failed after retries; leaving local npz in place "
+            f"so the eval is not lost: {failed}"
+        )
 
 
 if __name__ == "__main__":
