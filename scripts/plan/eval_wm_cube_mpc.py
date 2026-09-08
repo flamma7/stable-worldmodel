@@ -20,6 +20,7 @@ import os
 
 os.environ['MUJOCO_GL'] = 'egl'
 
+import gc
 import time
 from pathlib import Path
 
@@ -47,6 +48,25 @@ warnings.filterwarnings(
 
 # Same 0.04m threshold CubeEnv uses for cube-to-target success.
 SUCCESS_THRESHOLD = 0.04
+
+
+def log_mem(tag):
+    rss_mb = None
+    try:
+        with open('/proc/self/status') as fh:
+            for line in fh:
+                if line.startswith('VmRSS:'):
+                    rss_mb = int(line.split()[1]) / 1024.0
+                    break
+    except OSError:
+        pass
+    cuda = ''
+    if torch.cuda.is_available():
+        alloc = torch.cuda.memory_allocated() / 1024**2
+        reserved = torch.cuda.memory_reserved() / 1024**2
+        cuda = f' cuda_alloc={alloc:.0f}MB cuda_reserved={reserved:.0f}MB'
+    rss = f'{rss_mb:.0f}MB' if rss_mb is not None else 'unknown'
+    print(f'[eval] mem {tag}: rss={rss}{cuda}', flush=True)
 
 
 def dataset_columns(dataset):
@@ -189,6 +209,7 @@ def run(cfg: DictConfig):
         f'{batch_size} parallel envs '
         f'({(int(cfg.eval.num_eval) + batch_size - 1) // batch_size} batches)'
     )
+    log_mem('after world create')
 
     # create the transform
     img_dtype = torch.bfloat16 if cfg.get('bf16', False) else torch.float32
@@ -236,6 +257,7 @@ def run(cfg: DictConfig):
         model = model.eval()
         model.requires_grad_(False)
         model.interpolate_pos_encoding = True
+        log_mem('after model to cuda')
         if cfg.get('compile', False):
             encoder_attr = (
                 'backbone' if hasattr(model, 'backbone') else 'encoder'
@@ -417,7 +439,6 @@ def run(cfg: DictConfig):
         print('Warmup done.')
 
     start_time = time.time()
-    metric_chunks = []
     cube_chunks = []
     grip_chunks = []
     eval_world = world
@@ -431,41 +452,57 @@ def run(cfg: DictConfig):
                 eval_world.set_policy(policy)
             print(
                 f'[eval] batch {batch_idx + 1}/{n_batches} '
-                f'({start}:{end} of {n_eval})'
+                f'({start}:{end} of {n_eval})',
+                flush=True,
             )
             video_dir = (
                 results_path / f'batch_{start:04d}' if save_video else None
             )
-            metrics, cube_any, grip_any = run_chunk(
+            _, cube_any, grip_any = run_chunk(
                 eval_world,
                 start,
                 end,
                 video_dir,
             )
-            metric_chunks.append(metrics)
             cube_chunks.append(cube_any)
             grip_chunks.append(grip_any)
     end_time = time.time()
+    log_mem('after last batch')
+    print('[eval] rollouts finished; freeing env/policy before npz write', flush=True)
+    try:
+        eval_world.close()
+    except Exception as exc:
+        print(f'[eval] eval_world.close failed: {exc}', flush=True)
+    eval_world = None
+    try:
+        world.close()
+    except Exception:
+        pass
+    world = None
+    policy = None
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
+    log_mem('after free')
 
     cube_success = np.concatenate(cube_chunks)
     gripper_success = np.concatenate(grip_chunks)
     both_success = cube_success & gripper_success
+    cube_rate = float(cube_success.sum()) / n_eval * 100.0
+    grip_rate = float(gripper_success.sum()) / n_eval * 100.0
+    both_rate = float(both_success.sum()) / n_eval * 100.0
+    print(
+        f'[eval] rates cube={cube_rate:.1f}% gripper={grip_rate:.1f}% '
+        f'both={both_rate:.1f}% n={n_eval}',
+        flush=True,
+    )
     metrics = {
-        'cube_success': cube_success,
-        'gripper_success': gripper_success,
-        'both_success': both_success,
-        'cube_success_rate': float(cube_success.sum()) / n_eval * 100.0,
-        'gripper_success_rate': float(gripper_success.sum()) / n_eval * 100.0,
-        'both_success_rate': float(both_success.sum()) / n_eval * 100.0,
+        'cube_success_rate': cube_rate,
+        'gripper_success_rate': grip_rate,
+        'both_success_rate': both_rate,
         'success_threshold': SUCCESS_THRESHOLD,
     }
-    seeds = [m.get('seeds') for m in metric_chunks]
-    if all(s is not None for s in seeds):
-        metrics['seeds'] = np.concatenate(
-            [np.asarray(s).reshape(-1) for s in seeds]
-        )
 
-    print(metrics)
     if save_video:
         print(f'[eval] videos saved to {results_path.resolve()}')
 
@@ -484,6 +521,7 @@ def run(cfg: DictConfig):
         f.write(f'evaluation_time: {end_time - start_time} seconds\n')
 
     n = len(eval_episodes)
+    print(f'[eval] building {n} per-scenario records', flush=True)
     records = np.empty(
         n,
         dtype=[
@@ -511,12 +549,23 @@ def run(cfg: DictConfig):
         Path(hydra.utils.get_original_cwd()) / output_dir / f'{cfg.eval.name}.npz'
     )
     npz_path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(
-        npz_path,
-        records=records,
-        success_threshold=np.float32(SUCCESS_THRESHOLD),
+    log_mem('before npz write')
+    print(
+        f'[eval] writing npz {npz_path} ({records.nbytes} bytes of records)',
+        flush=True,
     )
-    print(f'[eval] per-scenario records saved to {npz_path.resolve()}')
+    try:
+        np.savez(
+            npz_path,
+            records=records,
+            success_threshold=np.float32(SUCCESS_THRESHOLD),
+        )
+    except MemoryError:
+        log_mem('MemoryError during npz write')
+        print('[eval] MemoryError while writing npz (host RAM exhausted)', flush=True)
+        raise
+    print(f'[eval] per-scenario records saved to {npz_path.resolve()}', flush=True)
+    log_mem('after npz write')
 
 
 if __name__ == '__main__':

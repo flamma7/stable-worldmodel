@@ -142,7 +142,22 @@ def run_eval(
             "-cn",
             "cube",
         ]
-    subprocess.run(cmd, check=True, cwd=HERE)
+    print(f"running eval: {' '.join(cmd)}", flush=True)
+    try:
+        subprocess.run(cmd, check=True, cwd=HERE)
+    except subprocess.CalledProcessError as exc:
+        rc = exc.returncode
+        if rc is not None and rc < 0:
+            sig = -rc
+            hint = {
+                9: 'SIGKILL (often the kernel OOM killer)',
+                15: 'SIGTERM',
+                6: 'SIGABRT',
+            }.get(sig, f'signal {sig}')
+            print(f"eval subprocess killed: returncode={rc} ({hint})", flush=True)
+        else:
+            print(f"eval subprocess failed: returncode={rc}", flush=True)
+        raise
     return npz_path_for(mode, eval_name, output_dir)
 
 
