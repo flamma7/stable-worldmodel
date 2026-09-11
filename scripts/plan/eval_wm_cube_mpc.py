@@ -1,5 +1,9 @@
 """
 python scripts/plan/eval_wm_cube_mpc.py policy=quentinll/lewm-cube eval.name=ogb_cube_table eval.dataset_name=galilai-group/ogb_cube_single seed=42 eval.num_eval=50 eval.batch_size=50 -cn cube
+
+Gradient planner (Hydra solver/adam.yaml == GradientSolver):
+
+python scripts/plan/eval_wm_cube_mpc.py ... solver=adam solver.n_steps=30 solver.num_samples=100 solver.optimizer_kwargs.lr=0.1 -cn cube
 """
 
 """Evaluate a World Model with one full-budget MPC rollout per scenario.
@@ -22,6 +26,7 @@ os.environ['MUJOCO_GL'] = 'egl'
 
 import gc
 import time
+from contextlib import nullcontext
 from pathlib import Path
 
 import hydra
@@ -48,6 +53,19 @@ warnings.filterwarnings(
 
 # Same 0.04m threshold CubeEnv uses for cube-to-target success.
 SUCCESS_THRESHOLD = 0.04
+_GRAD_SOLVER_TARGETS = (
+    'GradientSolver',
+    'PGDSolver',
+    'LagrangianSolver',
+)
+
+
+def solver_needs_action_grad(solver_cfg):
+    """True for planners that backprop through the world-model cost."""
+    if solver_cfg is None:
+        return False
+    target = str(OmegaConf.select(solver_cfg, '_target_') or '')
+    return any(name in target for name in _GRAD_SOLVER_TARGETS)
 
 
 def log_mem(tag):
@@ -243,6 +261,19 @@ def run(cfg: DictConfig):
 
     # -- run evaluation
     policy = cfg.get('policy', 'random')
+    needs_action_grad = solver_needs_action_grad(cfg.get('solver'))
+    use_bf16 = bool(cfg.get('bf16', False)) and not needs_action_grad
+    use_compile = bool(cfg.get('compile', False)) and not needs_action_grad
+    if needs_action_grad:
+        print(
+            '[eval] gradient planner: action grads on, weights frozen, '
+            f'solver={cfg.solver.get("_target_", cfg.solver)}',
+            flush=True,
+        )
+        if cfg.get('bf16', False):
+            print('[eval] bf16 disabled (fp32 needed for action grads)', flush=True)
+        if cfg.get('compile', False):
+            print('[eval] compile disabled (incompatible with action grads)', flush=True)
 
     if policy != 'random':
         drop = (
@@ -251,14 +282,16 @@ def run(cfg: DictConfig):
             else None
         )
         model = swm.wm.utils.load_pretrained(cfg.policy, drop_modules=drop)
-        if cfg.get('bf16', False):
+        if use_bf16:
             model = model.to(torch.bfloat16)
         model = model.to('cuda')
         model = model.eval()
+        # Freeze WM weights. GradientSolver still backprops to the action
+        # tensor; do not wrap the rollout in no_grad / inference_mode.
         model.requires_grad_(False)
         model.interpolate_pos_encoding = True
         log_mem('after model to cuda')
-        if cfg.get('compile', False):
+        if use_compile:
             encoder_attr = (
                 'backbone' if hasattr(model, 'backbone') else 'encoder'
             )
@@ -369,8 +402,9 @@ def run(cfg: DictConfig):
     autocast_ctx = torch.autocast(
         device_type='cuda',
         dtype=torch.bfloat16,
-        enabled=cfg.get('bf16', False),
+        enabled=use_bf16,
     )
+    grad_ctx = torch.enable_grad() if needs_action_grad else nullcontext()
 
     eval_episodes_list = eval_episodes.tolist()
     eval_start_list = eval_start_idx.tolist()
@@ -427,14 +461,14 @@ def run(cfg: DictConfig):
             eval_world._run = orig_run
         return metrics, cube_any, grip_any
 
-    if cfg.get('compile', False):
+    if use_compile:
         print('Warming up compiled model...')
         warmup_autocast_ctx = torch.autocast(
             device_type='cuda',
             dtype=torch.bfloat16,
-            enabled=cfg.get('bf16', False),
+            enabled=use_bf16,
         )
-        with warmup_autocast_ctx:
+        with warmup_autocast_ctx, grad_ctx:
             run_chunk(world, 0, world.num_envs, None, track=False)
         print('Warmup done.')
 
@@ -442,7 +476,7 @@ def run(cfg: DictConfig):
     cube_chunks = []
     grip_chunks = []
     eval_world = world
-    with autocast_ctx:
+    with autocast_ctx, grad_ctx:
         for batch_idx, start in enumerate(range(0, n_eval, batch_size)):
             end = min(start + batch_size, n_eval)
             chunk_n = end - start

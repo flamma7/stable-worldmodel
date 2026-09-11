@@ -27,7 +27,17 @@ def parse_args():
     parser.add_argument("model_name", help="HF folder / output_model_name to download")
     parser.add_argument("seed", nargs="?", type=int, default=42)
     parser.add_argument("num_eval", nargs="?", type=int, default=50)
-    parser.add_argument("--batch-size", type=int, default=50)
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=None,
+        help="Parallel envs (default: 50, or default.plan.batch_size when --local)",
+    )
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Local machine: default --batch-size to 50 (job_configs default.plan)",
+    )
     parser.add_argument("--hf-repo", default="flamma77/lewm-base")
     parser.add_argument("--hf-subdir", required=True)
     parser.add_argument(
@@ -50,7 +60,17 @@ def parse_args():
     parser.add_argument(
         "--solver",
         default="icem",
-        help="MPC Hydra solver config (e.g. cem, icem). Ignored for plan.",
+        help="MPC Hydra solver config (cem, icem, adam). Ignored for plan.",
+    )
+    parser.add_argument(
+        "--solver-kw",
+        action="append",
+        default=[],
+        metavar="KEY=VAL",
+        help=(
+            "Hydra override for the solver (repeatable). "
+            "Examples: n_steps=30, num_samples=32, lr=0.1. Ignored for plan."
+        ),
     )
     return parser.parse_args()
 
@@ -108,9 +128,27 @@ def ensure_checkpoint(repo, subdir, name, ckpt_root):
     return dest / f"weights_epoch_{epoch}.pt"
 
 
+def solver_hydra_overrides(solver_kws):
+    """Turn --solver-kw entries into Hydra solver.* overrides."""
+    overrides = []
+    for raw in solver_kws or []:
+        raw = str(raw).strip()
+        if not raw:
+            continue
+        if raw.startswith("solver."):
+            overrides.append(raw)
+            continue
+        key, sep, val = raw.partition("=")
+        if key in {"lr", "optimizer_kwargs.lr"}:
+            overrides.append(f"solver.optimizer_kwargs.lr={val}" if sep else raw)
+        else:
+            overrides.append(f"solver.{raw}")
+    return overrides
+
+
 def run_eval(
     mode, policy, eval_name, seed, num_eval, batch_size, output_dir, dataset,
-    num_candidates=64, solver="icem",
+    num_candidates=64, solver="icem", solver_kws=None,
 ):
     if mode == "plan":
         cmd = [
@@ -139,6 +177,7 @@ def run_eval(
             f"eval.batch_size={batch_size}",
             f"eval.output_dir={output_dir}",
             f"solver={solver}",
+            *solver_hydra_overrides(solver_kws),
             "-cn",
             "cube",
         ]
@@ -237,8 +276,13 @@ def push_eval_npzs(repo, subdir, output_dir, npz_paths):
     return failed
 
 
+LOCAL_BATCH_SIZE = 50  # job_configs default.plan.batch_size
+
+
 def main():
     args = parse_args()
+    if args.batch_size is None:
+        args.batch_size = LOCAL_BATCH_SIZE
     repo = args.hf_repo
     subdir = args.hf_subdir
     name = args.model_name
@@ -281,6 +325,7 @@ def main():
         args.dataset,
         num_candidates=args.num_candidates,
         solver=args.solver,
+        solver_kws=args.solver_kw,
     )
     print(f"eval npz saved locally: {npz}")
     failed = push_eval_npzs(repo, subdir, hf_output_dir, [npz])

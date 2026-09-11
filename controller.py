@@ -68,6 +68,7 @@ TRAIN_SKIP_KEYS = {
     "platform",
     "stack",
     "solver",
+    "solver_kwargs",
 }
 
 PRINT_LOCK = threading.Lock()
@@ -123,7 +124,10 @@ def parse_args():
     parser.add_argument(
         "--local",
         action="store_true",
-        help="Run commands here instead of calling deploy.py (gpu=local)",
+        help=(
+            "Run commands here instead of calling deploy.py (gpu=local). "
+            "Eval jobs use default.plan.batch_size instead of platform GPU sizes."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -469,6 +473,16 @@ def infer_output_model_name(cfg, job, mapped=None):
     return "_".join(parts)
 
 
+def job_sets_batch_size(job):
+    return "batch_size" in job or "batch_size" in (job.get("params") or {})
+
+
+def local_eval_batch_size(cfg):
+    """Batch size for --local evals: default.plan.batch_size (50 in tdv_ogb)."""
+    plan = (cfg.get("default") or {}).get("plan") or {}
+    return plan.get("batch_size", 50)
+
+
 def dataset_from_mapped(mapped):
     return (
         mapped.get("data.dataset.name")
@@ -556,7 +570,7 @@ def build_train_cmd(cfg, job, mapped):
     return " ".join(parts), model_name
 
 
-def build_eval_cmd(cfg, job, mapped, mode):
+def build_eval_cmd(cfg, job, mapped, mode, local=False):
     model_name = infer_output_model_name(cfg, job, mapped)
     seed = mapped.get("seed", 42)
     num_eval = mapped.get("num_eval", 50)
@@ -587,8 +601,16 @@ def build_eval_cmd(cfg, job, mapped, mode):
         )
     if mode == "mpc":
         parts.extend(["--solver", str(mapped.get("solver", "icem"))])
+        solver_kwargs = mapped.get("solver_kwargs") or {}
+        if isinstance(solver_kwargs, dict):
+            for key, value in solver_kwargs.items():
+                parts.extend(
+                    ["--solver-kw", f"{key}={format_cli_value(value)}"]
+                )
     if job.get("is_hf_model"):
         parts.append("--is-hf-model")
+    if local:
+        parts.append("--local")
     return " ".join(parts), model_name
 
 
@@ -603,7 +625,7 @@ def build_job(cfg, job, local=False):
         mapped["cloud"] = first["cloud"]
         if first.get("region"):
             mapped["region"] = first["region"]
-        if first.get("batch_size") is not None:
+        if not local and first.get("batch_size") is not None:
             mapped["loader.batch_size"] = first["batch_size"]
             mapped["batch_size"] = first["batch_size"]
         gpu = mapped["gpu"]
@@ -621,11 +643,16 @@ def build_job(cfg, job, local=False):
                 "region": mapped.get("region") or "us",
             }
         ]
+    if local and mode != "train" and not job_sets_batch_size(job):
+        mapped = dict(mapped)
+        bs = local_eval_batch_size(cfg)
+        mapped["loader.batch_size"] = bs
+        mapped["batch_size"] = bs
     if mode == "train":
         cmd, model_name = build_train_cmd(cfg, job, mapped)
         install_mode = "train"
     else:
-        cmd, model_name = build_eval_cmd(cfg, job, mapped, mode)
+        cmd, model_name = build_eval_cmd(cfg, job, mapped, mode, local=local)
         install_mode = "eval"
     repo = pick(mapped, cfg, "hf.repo_id") or pick(mapped, cfg, "hf_repo")
     return {
