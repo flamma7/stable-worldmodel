@@ -777,6 +777,30 @@ def format_age(seconds):
     return f"{minutes}m{sec:02d}s"
 
 
+def check_runpod_gpus(groups):
+    """Fail before launch if any platform GPU is not a RunPod gpuTypeIds value."""
+    seen = set()
+    errors = []
+    for group in groups:
+        spec = group[0][1]
+        names = []
+        for entry in spec.get("platform") or ():
+            if isinstance(entry, dict) and entry.get("gpu"):
+                names.append(entry["gpu"])
+        if spec.get("gpu"):
+            names.append(spec["gpu"])
+        for name in names:
+            if name in seen:
+                continue
+            seen.add(name)
+            try:
+                deploy_mod.validate_gpu_type(name)
+            except ValueError as exc:
+                errors.append(str(exc))
+    if errors:
+        raise SystemExit("Invalid GPU type(s):\n  " + "\n  ".join(errors))
+
+
 def print_plan(matched, skipped, groups, local, args):
     print("Matched jobs: " + ", ".join(key for _, key, _ in matched))
     if skipped:
@@ -1454,6 +1478,8 @@ def main():
         to_run.append((key, build_job(cfg, job, local=args.local)))
 
     groups = stack_jobs(to_run)
+    if not args.local:
+        check_runpod_gpus(groups)
     print_plan(matched, skipped, groups, args.local, args)
     if args.dry_run or not groups:
         return

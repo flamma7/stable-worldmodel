@@ -25,23 +25,30 @@ default:
     eval_output_dir: data
     eval_output_hf: true
     stack: 1
-    # cem | icem | adam. Optional solver_kwargs: n_steps, num_samples, lr
     solver: icem
     platform:
       - gpu: NVIDIA RTX 4000 Ada Generation
         batch_size: 150
         cloud: secure
       - gpu: NVIDIA RTX 2000 Ada Generation
-        batch_size: 150
+        batch_size: 100
         cloud: secure
       - gpu: NVIDIA RTX A4500
-        batch_size: 150
+        batch_size: 100
         cloud: community
-        region: france
+      - gpu: NVIDIA GeForce RTX 3080 Ti
+        batch_size: 50
+        cloud: community
       - gpu: NVIDIA RTX A4000
         batch_size: 150
         cloud: community
         region: us
+      - gpu: NVIDIA RTX A4000
+        batch_size: 100
+        cloud: secure
+      - gpu: NVIDIA GeForce RTX 3090
+        batch_size: 150
+        cloud: community
       - gpu: NVIDIA GeForce RTX 4090
         batch_size: 200
         cloud: community
@@ -342,9 +349,55 @@ job39:
   seed: 42
   num_eval: 2000
   solver: adam
+  status: failed
+  pod_ids: []
 job40:
   mode: mpc
   output_model_name: tdv_a1.0_lam0.25_lr5e-5
   seed: 42
   num_eval: 2000
   solver: adam
+  status: failed
+  pod_ids: []
+job41:
+  mode: mpc
+  output_model_name: quentinll/lewm-cube
+  is_hf_model: true
+  seed: 7
+  num_eval: 2000
+  solver: adam
+  status: running
+  pod_ids:
+    - 3lxowdwa5f0cso
+  pod_id: 3lxowdwa5f0cso
+job42:
+  mode: mpc
+  output_model_name: tdv_a1.0_lam0.25_lr5e-5
+  seed: 7
+  num_eval: 2000
+  solver: adam
+  status: running
+  pod_ids:
+    - m78twe3p74uu7o
+  pod_id: m78twe3p74uu7o
+job43:
+  mode: mpc
+  output_model_name: quentinll/lewm-cube
+  is_hf_model: true
+  seed: 101
+  num_eval: 2000
+  solver: adam
+  status: running
+  pod_ids:
+    - s176sa4mh985gb
+  pod_id: s176sa4mh985gb
+job44:
+  mode: mpc
+  output_model_name: tdv_a1.0_lam0.25_lr5e-5
+  seed: 101
+  num_eval: 2000
+  solver: adam
+  status: running
+  pod_ids:
+    - 4fbftdrqqbajcg
+  pod_id: 4fbftdrqqbajcg

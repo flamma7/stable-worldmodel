@@ -214,3 +214,21 @@ job13:
   pod_ids:
     - 8wv1szmcuyily7
   pod_id: 8wv1szmcuyily7
+job14:
+  mode: mpc
+  output_model_name: lewm_lam0.1_lr5e-5
+  seed: 42
+  num_eval: 2000
+  solver: adam
+job15:
+  mode: mpc
+  output_model_name: lewm_lam0.1_lr5e-5
+  seed: 7
+  num_eval: 2000
+  solver: adam
+job16:
+  mode: mpc
+  output_model_name: lewm_lam0.1_lr5e-5
+  seed: 101
+  num_eval: 2000
+  solver: adam

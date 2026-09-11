@@ -8,6 +8,7 @@ Used by controller.py. Also:
 """
 
 import argparse
+import difflib
 import os
 import time
 
@@ -33,8 +34,76 @@ _NO_GPU_MARKERS = (
 )
 
 
+# POST /pods gpuTypeIds enum from rest.runpod.io/v1. Names must match exactly.
+RUNPOD_GPU_TYPE_IDS = frozenset(
+    {
+        "AMD Instinct MI300X OAM",
+        "NVIDIA A100 80GB PCIe",
+        "NVIDIA A100-SXM4-40GB",
+        "NVIDIA A100-SXM4-80GB",
+        "NVIDIA A40",
+        "NVIDIA B200",
+        "NVIDIA B300 SXM6 AC",
+        "NVIDIA B300 SXM6 AC MIG 1g.34gb",
+        "NVIDIA GeForce RTX 3070",
+        "NVIDIA GeForce RTX 3080",
+        "NVIDIA GeForce RTX 3080 Ti",
+        "NVIDIA GeForce RTX 3090",
+        "NVIDIA GeForce RTX 3090 Ti",
+        "NVIDIA GeForce RTX 4070 Ti",
+        "NVIDIA GeForce RTX 4080",
+        "NVIDIA GeForce RTX 4080 SUPER",
+        "NVIDIA GeForce RTX 4090",
+        "NVIDIA GeForce RTX 5080",
+        "NVIDIA GeForce RTX 5090",
+        "NVIDIA H100 80GB HBM3",
+        "NVIDIA H100 NVL",
+        "NVIDIA H100 PCIe",
+        "NVIDIA H200",
+        "NVIDIA H200 NVL",
+        "NVIDIA L4",
+        "NVIDIA L40",
+        "NVIDIA L40S",
+        "NVIDIA RTX 2000 Ada Generation",
+        "NVIDIA RTX 4000 Ada Generation",
+        "NVIDIA RTX 4000 SFF Ada Generation",
+        "NVIDIA RTX 5000 Ada Generation",
+        "NVIDIA RTX 6000 Ada Generation",
+        "NVIDIA RTX A2000",
+        "NVIDIA RTX A4000",
+        "NVIDIA RTX A4500",
+        "NVIDIA RTX A5000",
+        "NVIDIA RTX A6000",
+        "NVIDIA RTX PRO 4000 Blackwell",
+        "NVIDIA RTX PRO 4500 Blackwell",
+        "NVIDIA RTX PRO 5000 Blackwell",
+        "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
+        "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+        "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+        "Tesla V100-PCIE-16GB",
+        "Tesla V100-SXM2-16GB",
+    }
+)
+
+
 class NoGpuAvailable(RuntimeError):
     """Runpod has no capacity for this GPU / cloud / region."""
+
+
+def validate_gpu_type(gpu):
+    """Return gpu if it is a known RunPod type. Raise ValueError otherwise."""
+    name = str(gpu).strip()
+    if name.lower() == "local":
+        return name
+    if name in RUNPOD_GPU_TYPE_IDS:
+        return name
+    suggestions = difflib.get_close_matches(
+        name, RUNPOD_GPU_TYPE_IDS, n=3, cutoff=0.5
+    )
+    hint = ""
+    if suggestions:
+        hint = " Did you mean: " + ", ".join(repr(s) for s in suggestions) + "?"
+    raise ValueError(f"Unknown RunPod GPU type {name!r}.{hint}")
 
 
 def is_no_gpu_error(text):
@@ -204,6 +273,7 @@ def launch_direct(
     wait=60,
 ):
     """Launch one Runpod pod. Returns the pod ID."""
+    gpu = validate_gpu_type(gpu)
     headers = api_headers()
     template_obj = resolve_template(headers, template)
     country_codes = resolve_region(region)

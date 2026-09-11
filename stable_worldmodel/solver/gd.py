@@ -116,30 +116,39 @@ class GradientSolver(torch.nn.Module):
         """Initialize the action tensor for optimization."""
         if actions is None:
             actions = torch.zeros(
-                (n_envs, 0, self.action_dim), dtype=self.dtype
+                (n_envs, 0, self.action_dim),
+                dtype=self.dtype,
+                device=self.device,
             )
+        else:
+            # prepare_init_action often returns a full-horizon CPU tensor, so
+            # remaining==0 and the old .to(device) on the pad path never ran.
+            actions = actions.to(device=self.device, dtype=self.dtype)
 
-        # fill remaining action
         remaining = self.horizon - actions.shape[1]
-
         if remaining > 0:
             new_actions = torch.zeros(
-                n_envs, remaining, self.action_dim, dtype=self.dtype
+                n_envs,
+                remaining,
+                self.action_dim,
+                dtype=self.dtype,
+                device=self.device,
             )
-            actions = torch.cat([actions, new_actions], dim=1).to(self.device)
+            actions = torch.cat([actions, new_actions], dim=1)
 
         actions = actions.unsqueeze(1).repeat_interleave(
             self.num_samples, dim=1
         )  # add sample dim
-        actions[:, 1:] += (
-            torch.randn(
-                actions[:, 1:].shape,
-                generator=self.torch_gen,
-                device=self.device,
-                dtype=self.dtype,
-            )
-            * self.var_scale
-        )  # add small noise to all samples except the first one
+        if self.num_samples > 1:
+            actions[:, 1:] += (
+                torch.randn(
+                    actions[:, 1:].shape,
+                    generator=self.torch_gen,
+                    device=self.device,
+                    dtype=self.dtype,
+                )
+                * self.var_scale
+            )  # add small noise to all samples except the first one
 
         # reset actions — re-register when shape differs (batch size may vary across calls)
         if hasattr(self, 'init') and self.init.shape == actions.shape:
