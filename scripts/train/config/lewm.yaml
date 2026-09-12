@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - launcher: local
-  - data: ogb
+  - data: pusht
 
 output_model_name: lewm
 subdir: ${hydra:job.id}
@@ -13,25 +13,17 @@ img_size: 224
 patch_size: 14
 encoder_scale: tiny
 embed_dim: 192
-
-# Leftover from original code
 encoder_resnet9: False
 train_value_function: False
 projector_loss_weight: 1e-3
-dump_object: False
-compile: true
-make_it_fast: false
-log_throughput: False # logs samples/sec and other metrics
-# Resume trainer state from HF {repo_id}/{path_prefix}/{output_model_name}/latest.ckpt
-load_checkpoint_hf: false
+dump_object: True
 
 trainer:
-  max_epochs: 10
-  devices: 1
+  max_epochs: 100
+  devices: auto
   accelerator: gpu
-  precision: bf16-mixed
+  precision: bf16
   gradient_clip_val: 1.0
-  check_val_every_n_epoch: 2
 
 loader:
   batch_size: 128
@@ -42,20 +34,10 @@ loader:
   pin_memory: True
   shuffle: True
 
-val_loader:
-  batch_size: ${loader.batch_size}
-  num_workers: 4
-  drop_last: False
-  persistent_workers: True
-  prefetch_factor: 1
-  pin_memory: ${loader.pin_memory}
-  shuffle: False
-
 optimizer:
   type: AdamW
   lr: 5e-5
   weight_decay: 1e-3
-  fused: false # must be false for gradient clipping
 
 wm:
   history_size: 3
@@ -109,14 +91,3 @@ loss:
     kwargs:
       knots: 17
       num_proj: 1024
-    # Collapse scalars on post-projection embeddings: variance_mean,
-    # effective_rank_frac, mean_rms. CPU buffers, not in the training loss.
-    diagnostics:
-      enabled: true
-      buffer_size: 8192
-      sample_every: 16
-      sample_size: 48
-      log_every: 400
-      min_samples: 2048
-      eps: 1.0e-12
-      background: true

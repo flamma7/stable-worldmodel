@@ -5,7 +5,7 @@ defaults:
 
 world:
   env_name: swm/OGBCube-v0
-  num_envs: ${eval.batch_size}
+  num_envs: ${eval.num_eval}
   max_episode_steps: ??? # make sure it's >= eval_budget
   env_type: single
   ob_type: states
@@ -22,8 +22,6 @@ dataset:
 
 seed: 42
 policy: random # ckpt name or random
-# TDV motion encoder is train-only; skip it so those weights never hit GPU.
-drop_motion_encoder: true
 
 plan_config:
   horizon: 5
@@ -32,16 +30,11 @@ plan_config:
 
 # evaluation from dataset (replay expert trajectories)
 eval:
-  name: ???  # required; writes <output_dir>/<name>.npz
-  output_dir: data
   num_eval: 50
-  batch_size: 50  # parallel envs; num_eval is processed in chunks of this size
-  num_candidates: 64  # action sequences sampled per scenario (plan ranking)
   goal_offset_steps: 25
   eval_budget: 50
   img_size: 224
   dataset_name: ogbench/cube_single_expert.h5
-  save_video: false  # set true to write env_*.mp4 per env
   callables:
     # -- set state
     - method: set_state

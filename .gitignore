@@ -212,8 +212,6 @@ logs/
 **/__pycache__/**
 **/*.pyc
 !scripts/minerl.sh
-!pull_hf_results.sh
-tmp_results/
 
 outputs/
 multirun/
@@ -232,6 +230,3 @@ results/
 local_scripts/
 CLAUDE.md
 uv.lock
-
-*.npz
-*.png

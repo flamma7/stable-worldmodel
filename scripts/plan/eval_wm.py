@@ -16,43 +16,6 @@ from sklearn import preprocessing
 from torchvision.transforms import v2 as transforms
 import stable_worldmodel as swm
 
-def dataset_columns(dataset):
-    names = set(dataset.column_names)
-    names |= set(getattr(dataset, '_schema_names', ()))
-    return names
-
-
-def episode_col(dataset):
-    names = dataset_columns(dataset)
-    return 'episode_idx' if 'episode_idx' in names else 'ep_idx'
-
-
-def cube_pos_col(dataset):
-    names = dataset_columns(dataset)
-    for col in (
-        'privileged_block_0_pos',
-        'privileged/block_0_pos',
-    ):
-        if col in names:
-            return col
-    return None
-
-
-def target_cube_displacement(dataset, start_rows, goal_offset, cube_col):
-    """L2 distance the cube travels on the expert trajectory (start → goal)."""
-    pos = np.asarray(dataset.get_col_data(cube_col), dtype=np.float64)
-    pos = np.reshape(pos, (pos.shape[0], -1))
-    goal_rows = start_rows + goal_offset
-    step = np.asarray(dataset.get_col_data('step_idx')).reshape(-1)
-    if not np.array_equal(step[goal_rows], step[start_rows] + goal_offset):
-        raise ValueError(
-            'Goal rows are not start_row + goal_offset; the dataset is '
-            'not stored episode-contiguously.'
-        )
-    start_pos = pos[start_rows]
-    goal_pos = pos[goal_rows]
-    return np.linalg.norm(goal_pos - start_pos, axis=-1)
-
 
 def img_transform(cfg, dtype=torch.float32):
     transform = transforms.Compose(
@@ -67,10 +30,9 @@ def img_transform(cfg, dtype=torch.float32):
 
 
 def get_episodes_length(dataset, episodes):
-    col_name = episode_col(dataset)
-    # col_name = (
-    #     'episode_idx' if 'episode_idx' in dataset.column_names else 'ep_idx'
-    # )
+    col_name = (
+        'episode_idx' if 'episode_idx' in dataset.column_names else 'ep_idx'
+    )
 
     episode_idx = dataset.get_col_data(col_name)
     step_idx = dataset.get_col_data('step_idx')
@@ -110,10 +72,9 @@ def run(cfg: DictConfig):
 
     dataset = get_dataset(cfg, cfg.eval.dataset_name)
     stats_dataset = dataset  # get_dataset(cfg, cfg.dataset.stats)
-    col_name = episode_col(dataset)
-    # col_name = (
-    #     'episode_idx' if 'episode_idx' in dataset.column_names else 'ep_idx'
-    # )
+    col_name = (
+        'episode_idx' if 'episode_idx' in dataset.column_names else 'ep_idx'
+    )
     ep_indices, _ = np.unique(
         stats_dataset.get_col_data(col_name), return_index=True
     )
@@ -176,10 +137,9 @@ def run(cfg: DictConfig):
         ep_id: max_start_idx[i] for i, ep_id in enumerate(ep_indices)
     }
     # Map each dataset row’s episode_idx to its max_start_idx
-    col_name = episode_col(dataset)
-    # col_name = (
-    #     'episode_idx' if 'episode_idx' in dataset.column_names else 'ep_idx'
-    # )
+    col_name = (
+        'episode_idx' if 'episode_idx' in dataset.column_names else 'ep_idx'
+    )
     max_start_per_row = np.array(
         [max_start_idx_dict[ep_id] for ep_id in dataset.get_col_data(col_name)]
     )
@@ -191,31 +151,16 @@ def run(cfg: DictConfig):
 
     g = np.random.default_rng(cfg.seed)
     random_episode_indices = g.choice(
-        len(valid_indices), size=cfg.eval.num_eval, replace=False
+        len(valid_indices) - 1, size=cfg.eval.num_eval, replace=False
     )
-    # random_episode_indices = g.choice(
-    #     len(valid_indices) - 1, size=cfg.eval.num_eval, replace=False
-    # )
 
     # sort increasingly to avoid issues with HDF5Dataset indexing
     random_episode_indices = np.sort(valid_indices[random_episode_indices])
 
     print(random_episode_indices)
 
-    eval_episodes = dataset.get_col_data(col_name)[random_episode_indices]
-    eval_start_idx = dataset.get_col_data('step_idx')[random_episode_indices]
-    # eval_episodes = dataset.get_row_data(random_episode_indices)[col_name]
-    # eval_start_idx = dataset.get_row_data(random_episode_indices)['step_idx']
-
-    cube_col = cube_pos_col(dataset)
-    cube_displacement = None
-    if cube_col is not None:
-        cube_displacement = target_cube_displacement(
-            dataset,
-            random_episode_indices,
-            cfg.eval.goal_offset_steps,
-            cube_col,
-        )
+    eval_episodes = dataset.get_row_data(random_episode_indices)[col_name]
+    eval_start_idx = dataset.get_row_data(random_episode_indices)['step_idx']
 
     if len(eval_episodes) < cfg.eval.num_eval:
         raise ValueError(
@@ -289,34 +234,6 @@ def run(cfg: DictConfig):
         f.write('==== RESULTS ====\n')
         f.write(f'metrics: {metrics}\n')
         f.write(f'evaluation_time: {end_time - start_time} seconds\n')
-
-    n = len(eval_episodes)
-    successes = np.asarray(metrics['episode_successes']).reshape(n).astype(
-        bool
-    )
-    records = np.empty(
-        n,
-        dtype=[
-            ('scenario', np.int32),
-            ('episode_idx', np.int64),
-            ('start_step', np.int32),
-            ('cube_displacement', np.float32),
-            ('success', np.bool_),
-        ],
-    )
-    records['scenario'] = np.arange(n, dtype=np.int32)
-    records['episode_idx'] = np.asarray(eval_episodes).reshape(n)
-    records['start_step'] = np.asarray(eval_start_idx).reshape(n)
-    records['cube_displacement'] = (
-        cube_displacement.astype(np.float32)
-        if cube_displacement is not None
-        else np.full(n, np.nan, dtype=np.float32)
-    )
-    records['success'] = successes
-
-    npz_path = results_path.with_suffix('.npz')
-    np.savez(npz_path, records=records)
-    print(f'[eval] per-scenario records saved to {npz_path.resolve()}')
 
 
 if __name__ == '__main__':
